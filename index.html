@@ -1,15 +1,441 @@
 <!DOCTYPE html>
-<html>
+<html lang="th">
 <head>
-    <title>คลังแบบทดสอบ</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบคลังข้อสอบ</title>
+    
+    <!-- โหลด Tailwind CSS และ Fonts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=K2D:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- โหลด React และ Babel สำหรับรันโค้ด -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
-        iframe { width: 100%; height: 100vh; border: none; }
+        body { font-family: 'K2D', sans-serif; background-color: #f9fafb; }
+        @media print {
+            body { background: white; }
+            .print\:hidden { display: none !important; }
+            .print\:shadow-none { box-shadow: none !important; border: none !important; }
+            .print\:p-0 { padding: 0 !important; }
+            .print\:mb-4 { margin-bottom: 1rem !important; }
+            .print\:break-inside-avoid { break-inside: avoid; }
+        }
     </style>
 </head>
 <body>
-    <iframe src="https://script.google.com/macros/s/AKfycbxMBgb7QIrRXZSPzQinL0ECuSshUQC-L65BWrni5IXmGXtYJ447SQs1e5PItmnnzTiB/exec"></iframe>
+    <!-- จุดที่ React จะแสดงผล -->
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // URL จาก Google Apps Script ของคุณ
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxMBgb7QIrRXZSPzQinL0ECuSshUQC-L65BWrni5IXmGXtYJ447SQs1e5PItmnnzTiB/exec';
+
+        const SUBJECTS = [
+          "ภาษาไทย", "ภาษาต่างประเทศ", "คณิตศาสตร์", "วิทยาศาสตร์",
+          "เทคโนโลยีดิจิทัล", "การงานอาชีพ", "สุขภาวะและศิลปะ", "สังคมศึกษา ประวัติศาสตร์ และหน้าที่พลเมือง"
+        ];
+
+        function App() {
+          const [isLoadingData, setIsLoadingData] = useState(false);
+          const [userRole, setUserRole] = useState(null); 
+          const [passwordInput, setPasswordInput] = useState('');
+          const [questions, setQuestions] = useState([]);
+          const [currentView, setCurrentView] = useState('login'); 
+          
+          const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+          const [score, setScore] = useState(0);
+          const [userAnswers, setUserAnswers] = useState([]);
+          const [quizQuestions, setQuizQuestions] = useState([]);
+          const [filterSubject, setFilterSubject] = useState('ทั้งหมด');
+          const [filterSemester, setFilterSemester] = useState('ทั้งหมด');
+          const [filterAcademicYear, setFilterAcademicYear] = useState('ทั้งหมด');
+          const [isRefreshing, setIsRefreshing] = useState(false);
+          
+          const [isSaving, setIsSaving] = useState(false);
+          const [editingId, setEditingId] = useState(null);
+          const [newQuestion, setNewQuestion] = useState({
+            semester: '1', academicYear: '2569', subject: SUBJECTS[0], question: '', choices: ['', '', '', ''], correctAnswer: 0
+          });
+
+          useEffect(() => {
+            fetchQuestionsFromSheets();
+          }, []);
+
+          const fetchQuestionsFromSheets = async () => {
+            setIsLoadingData(true);
+            try {
+              const response = await fetch(GOOGLE_SCRIPT_URL);
+              const result = await response.json();
+              if (result.status === 'success' && result.data && result.data.length > 0) {
+                setQuestions(result.data);
+              } else {
+                setQuestions([]); 
+              }
+            } catch (error) {
+              console.error("Error fetching data:", error);
+              alert("ไม่สามารถดึงข้อมูลจาก Google Sheets ได้");
+            } finally {
+              setIsLoadingData(false);
+            }
+          };
+
+          const handleStudentLogin = () => { setUserRole('student'); setCurrentView('menu'); };
+          const handleTeacherLogin = (e) => {
+            e.preventDefault();
+            if (passwordInput === 'admin123') {
+              setUserRole('teacher'); setPasswordInput(''); setCurrentView('menu');
+            } else {
+              alert('รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง'); setPasswordInput('');
+            }
+          };
+          const handleLogout = () => {
+            if(window.confirm('ต้องการออกจากระบบใช่หรือไม่?')) {
+              setUserRole(null); setCurrentView('login');
+            }
+          };
+
+          const goHome = () => setCurrentView('menu');
+
+          const handleDeleteQuestion = (id) => {
+            if (window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อสอบนี้จากหน้าเว็บ?')) {
+              setQuestions(questions.filter(q => q.id !== id));
+            }
+          };
+
+          const handleEditQuestion = (q) => {
+            setNewQuestion({ ...q }); setEditingId(q.id); setCurrentView('add');
+          };
+
+          const handleChoiceChange = (index, value) => {
+            const updatedChoices = [...newQuestion.choices];
+            updatedChoices[index] = value;
+            setNewQuestion({ ...newQuestion, choices: updatedChoices });
+          };
+
+          const handleAddSubmit = async (e) => {
+            e.preventDefault();
+            if (!newQuestion.question.trim() || newQuestion.choices.some(c => !c.trim())) {
+              alert('กรุณากรอกคำถามและตัวเลือกให้ครบทั้ง 4 ข้อ'); return;
+            }
+            setIsSaving(true);
+            try {
+              if (editingId) {
+                setQuestions(questions.map(q => q.id === editingId ? { ...newQuestion, id: editingId } : q));
+                alert('แก้ไขข้อสอบในหน้าเว็บสำเร็จ');
+              } else {
+                const payload = {
+                  timestamp: new Date().toLocaleString('th-TH'),
+                  semester: newQuestion.semester,
+                  academicYear: newQuestion.academicYear,
+                  subject: newQuestion.subject,
+                  question: newQuestion.question,
+                  choice1: newQuestion.choices[0],
+                  choice2: newQuestion.choices[1],
+                  choice3: newQuestion.choices[2],
+                  choice4: newQuestion.choices[3],
+                  correctAnswer: newQuestion.correctAnswer
+                };
+                await fetch(GOOGLE_SCRIPT_URL, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                  body: JSON.stringify(payload)
+                });
+                const newId = questions.length > 0 ? Math.max(...questions.map(q => q.id)) + 1 : 1;
+                setQuestions([...questions, { ...newQuestion, id: newId }]);
+              }
+              setNewQuestion({ semester: '1', academicYear: '2569', subject: filterSubject !== 'ทั้งหมด' ? filterSubject : SUBJECTS[0], question: '', choices: ['', '', '', ''], correctAnswer: 0 });
+              setEditingId(null);
+              setCurrentView('manage');
+            } catch (error) {
+              console.error("Error saving:", error);
+              alert('เกิดข้อผิดพลาดในการบันทึก');
+            } finally {
+              setIsSaving(false);
+            }
+          };
+
+          const startQuiz = (subject) => {
+            const targetQuestions = questions.filter(q => q.subject === subject);
+            if (targetQuestions.length === 0) {
+              alert(`ยังไม่มีข้อสอบในวิชา ${subject}`); return;
+            }
+            setQuizQuestions(targetQuestions); setCurrentQuestionIndex(0); setScore(0); setUserAnswers([]); setCurrentView('quiz');
+          };
+
+          const handleAnswerSelect = (choiceIndex) => {
+            const isCorrect = choiceIndex === quizQuestions[currentQuestionIndex].correctAnswer;
+            if (isCorrect) setScore(score + 1);
+            setUserAnswers([...userAnswers, { questionId: quizQuestions[currentQuestionIndex].id, selected: choiceIndex, isCorrect: isCorrect }]);
+            if (currentQuestionIndex + 1 < quizQuestions.length) {
+              setCurrentQuestionIndex(currentQuestionIndex + 1);
+            } else {
+              setCurrentView('result');
+            }
+          };
+
+          const handleRefresh = async () => {
+            setIsRefreshing(true); setFilterSubject('ทั้งหมด'); setFilterSemester('ทั้งหมด'); setFilterAcademicYear('ทั้งหมด');
+            await fetchQuestionsFromSheets();
+            setIsRefreshing(false);
+          };
+
+          // --- ส่วนการแสดงผล UI ---
+          if (isLoadingData && currentView === 'login') {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-4">
+                <div className="text-4xl animate-spin mb-4">⏳</div>
+                <p className="text-gray-600 font-medium">กำลังโหลดฐานข้อมูลข้อสอบ...</p>
+              </div>
+            );
+          }
+
+          if (currentView === 'login') {
+            return (
+              <div className="min-h-screen flex items-center justify-center p-4">
+                <div className="max-w-4xl w-full grid md:grid-cols-2 gap-6">
+                  <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center justify-center text-center border-t-4 border-blue-500">
+                    <div className="bg-blue-100 w-20 h-20 rounded-full flex items-center justify-center mb-6 text-4xl">👨‍🎓</div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">สำหรับผู้เรียน</h2>
+                    <p className="text-gray-500 mb-8">เข้าสู่ระบบเพื่อทำแบบทดสอบและดูคะแนน</p>
+                    <button onClick={handleStudentLogin} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-xl font-medium transition-colors shadow-lg shadow-blue-200">เข้าสู่ระบบผู้เรียน</button>
+                  </div>
+                  <div className="bg-white rounded-2xl shadow-lg p-8 flex flex-col items-center justify-center text-center border-t-4 border-orange-500">
+                    <div className="bg-orange-100 w-20 h-20 rounded-full flex items-center justify-center mb-6 text-4xl">🔐</div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">สำหรับคุณครู / ผู้ดูแล</h2>
+                    <p className="text-gray-500 mb-6">จัดการคลังข้อสอบ เพิ่ม แก้ไข ดูรายละเอียด</p>
+                    <form onSubmit={handleTeacherLogin} className="w-full space-y-4">
+                      <input type="password" placeholder="รหัสผ่าน (admin123)" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-orange-500 outline-none text-center" required />
+                      <button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 px-4 rounded-xl font-medium transition-colors shadow-lg shadow-orange-200">เข้าสู่ระบบครูผู้สอน</button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          if (currentView === 'menu') {
+            return (
+              <div className="min-h-screen flex flex-col items-center justify-center p-4 relative">
+                <button onClick={handleLogout} className="absolute top-4 right-4 flex items-center space-x-2 text-gray-500 hover:text-red-500 bg-white px-4 py-2 rounded-lg shadow-sm">
+                  <span>🚪 ออกจากระบบ</span>
+                </button>
+                <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center mt-10">
+                  <img src="https://img2.pic.in.th/000ac3156996f8d3f82f03e25393bd1f.png" alt="โลโก้" className="w-32 h-auto mx-auto mb-6 object-contain" />
+                  <h1 className="text-3xl font-bold mb-2">ระบบคลังข้อสอบ</h1>
+                  <p className="text-gray-500 mb-2">ยินดีต้อนรับ, {userRole === 'teacher' ? 'คุณครู' : 'ผู้เรียน'}</p>
+                  <p className="text-blue-500 text-sm mb-8 font-medium">✅ ดึงข้อมูลสำเร็จ: {questions.length} ข้อ</p>
+                  
+                  <div className="space-y-4">
+                    {userRole === 'teacher' && (
+                      <button onClick={() => setCurrentView('manage')} className="w-full flex items-center justify-center space-x-2 bg-white border-2 border-orange-500 text-orange-600 hover:bg-orange-50 py-3 px-4 rounded-xl font-medium">
+                        <span>📋 จัดการคลังข้อสอบ ({questions.length} ข้อ)</span>
+                      </button>
+                    )}
+                    <button onClick={() => setCurrentView('select-subject')} className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-xl font-medium shadow-lg shadow-blue-200">
+                      <span>▶️ เลือกวิชาทำแบบทดสอบ</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          if (currentView === 'select-subject') {
+            return (
+              <div className="min-h-screen p-4 md:p-8">
+                <div className="max-w-4xl mx-auto">
+                  <div className="flex items-center space-x-4 mb-8">
+                    <button onClick={goHome} className="p-2 hover:bg-gray-200 rounded-full text-xl">⬅️</button>
+                    <h2 className="text-2xl font-bold text-gray-900">เลือกวิชาที่ต้องการทดสอบ</h2>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {SUBJECTS.map((subject, index) => {
+                      const count = questions.filter(q => q.subject === subject).length;
+                      return (
+                        <button key={index} onClick={() => startQuiz(subject)} disabled={count === 0} className={`p-6 rounded-xl border-2 text-left flex flex-col h-full ${count > 0 ? 'border-blue-100 bg-white hover:border-blue-500 hover:shadow-md cursor-pointer' : 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'}`}>
+                          <div className="flex-1"><h3 className="font-bold text-lg text-gray-800 mb-2">{subject}</h3></div>
+                          <div className="mt-4 pt-4 border-t border-gray-100"><p className={`text-sm font-medium ${count > 0 ? 'text-blue-600' : 'text-gray-400'}`}>มีข้อสอบ {count} ข้อ</p></div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          if (currentView === 'manage' && userRole === 'teacher') {
+            const filteredQuestions = questions.filter(q => (filterSubject === 'ทั้งหมด' || q.subject === filterSubject) && (filterSemester === 'ทั้งหมด' || q.semester === filterSemester) && (filterAcademicYear === 'ทั้งหมด' || q.academicYear === filterAcademicYear));
+            return (
+              <div className="min-h-screen p-4 md:p-8">
+                <div className="max-w-4xl mx-auto print:max-w-full">
+                  <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 print:hidden">
+                    <div className="flex items-center space-x-4">
+                      <button onClick={goHome} className="p-2 hover:bg-gray-200 rounded-full text-xl">⬅️</button>
+                      <h2 className="text-2xl font-bold text-gray-900">จัดการคลังข้อสอบ</h2>
+                    </div>
+                    <div className="flex flex-wrap gap-2 justify-center md:justify-end w-full md:w-auto">
+                      <button onClick={handleRefresh} className="flex items-center space-x-2 bg-white border border-gray-300 hover:bg-gray-50 py-2 px-4 rounded-lg"><span>🔄 ดึงข้อมูลล่าสุด</span></button>
+                      <button onClick={() => window.print()} className="flex items-center space-x-2 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg"><span>🖨️ พิมพ์</span></button>
+                      <button onClick={() => { setEditingId(null); setNewQuestion({ semester: '1', academicYear: '2569', subject: filterSubject !== 'ทั้งหมด' ? filterSubject : SUBJECTS[0], question: '', choices: ['', '', '', ''], correctAnswer: 0 }); setCurrentView('add'); }} className="flex items-center space-x-2 bg-orange-500 hover:bg-orange-600 text-white py-2 px-4 rounded-lg"><span>➕ เพิ่มข้อสอบ</span></button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 print:hidden">
+                    {SUBJECTS.map(subject => {
+                      const count = questions.filter(q => q.subject === subject).length;
+                      return (
+                        <div key={subject} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
+                          <span className="text-xs text-gray-500 mb-1 line-clamp-1" title={subject}>{subject}</span>
+                          <span className="text-2xl font-bold text-blue-600">{count}</span>
+                          <span className="text-xs text-gray-400">ข้อ</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-8 print:hidden">
+                    <div className="flex flex-col md:flex-row gap-4 items-center">
+                      <span className="text-sm font-medium text-gray-700 mr-2">🔍 ค้นหา/ตัวกรอง:</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
+                        <select value={filterSubject} onChange={(e) => setFilterSubject(e.target.value)} className="py-2 px-3 border border-gray-300 rounded-lg outline-none text-sm"><option value="ทั้งหมด">-- ทุกรายวิชา --</option>{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                        <select value={filterSemester} onChange={(e) => setFilterSemester(e.target.value)} className="py-2 px-3 border border-gray-300 rounded-lg outline-none text-sm"><option value="ทั้งหมด">-- ทุกภาคเรียน --</option><option value="1">ภาคเรียนที่ 1</option><option value="2">ภาคเรียนที่ 2</option></select>
+                        <select value={filterAcademicYear} onChange={(e) => setFilterAcademicYear(e.target.value)} className="py-2 px-3 border border-gray-300 rounded-lg outline-none text-sm"><option value="ทั้งหมด">-- ทุกปีการศึกษา --</option><option value="2569">2569</option><option value="2570">2570</option><option value="2571">2571</option></select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 print:space-y-6">
+                    {isLoadingData ? (
+                       <div className="bg-white rounded-xl p-8 text-center text-gray-500 shadow-sm print:hidden">กำลังโหลดข้อมูล... ⏳</div>
+                    ) : filteredQuestions.length === 0 ? (
+                      <div className="bg-white rounded-xl p-8 text-center text-gray-500 shadow-sm print:hidden">ไม่พบข้อสอบที่ตรงกับเงื่อนไขที่เลือก</div>
+                    ) : (
+                      filteredQuestions.map((q, index) => (
+                        <div key={q.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 relative print:shadow-none print:p-0 print:border-none print:mb-8">
+                          <div className="absolute top-4 right-4 flex space-x-2 print:hidden">
+                            <button onClick={() => handleEditQuestion(q)} className="p-2 hover:bg-blue-50 rounded-lg" title="แก้ไข">✏️</button>
+                            <button onClick={() => handleDeleteQuestion(q.id)} className="p-2 hover:bg-red-50 rounded-lg" title="ลบ">🗑️</button>
+                          </div>
+                          <div className="inline-flex items-center space-x-1 bg-orange-50 text-orange-700 text-xs font-medium px-2.5 py-1 rounded-md mb-3 print:hidden">
+                            <span>🏷️ {q.subject} | เทอม {q.semester}/{q.academicYear}</span>
+                          </div>
+                          <h3 className="font-semibold text-lg text-gray-800 mb-4 pr-20 print:pr-0">ข้อที่ {index + 1}: {q.question}</h3>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 print:grid-cols-2 print:gap-4">
+                            {q.choices.map((choice, cIndex) => (
+                              <div key={cIndex} className={`p-3 rounded-lg text-sm flex items-center space-x-2 print:p-0 print:border-none ${q.correctAnswer === cIndex ? 'bg-green-50 border border-green-200 text-green-700 font-medium print:bg-transparent print:text-black' : 'bg-gray-50 border border-gray-200 text-gray-600 print:bg-transparent print:text-black'}`}>
+                                <span className="font-medium mr-1 print:inline hidden">{['ก.', 'ข.', 'ค.', 'ง.'][cIndex]}</span>
+                                {q.correctAnswer === cIndex ? <span className="print:hidden">✅</span> : <span className="print:hidden">⚪</span>}
+                                <span>{choice}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          if (currentView === 'add' && userRole === 'teacher') {
+            return (
+              <div className="min-h-screen p-4 md:p-8 flex justify-center items-start">
+                <div className="max-w-2xl w-full bg-white rounded-2xl shadow-sm border p-6 md:p-8">
+                  <div className="flex items-center space-x-4 mb-8">
+                    <button onClick={() => setCurrentView('manage')} className="p-2 hover:bg-gray-100 rounded-full text-xl">⬅️</button>
+                    <h2 className="text-2xl font-bold">{editingId ? 'แก้ไขข้อสอบ' : 'สร้างข้อสอบใหม่'}</h2>
+                  </div>
+                  <form onSubmit={handleAddSubmit} className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><label className="block text-sm font-medium mb-2">ภาคเรียนที่</label><select value={newQuestion.semester} onChange={(e) => setNewQuestion({...newQuestion, semester: e.target.value})} className="w-full border rounded-xl p-3 outline-none bg-white"><option value="1">1</option><option value="2">2</option></select></div>
+                      <div><label className="block text-sm font-medium mb-2">ปีการศึกษา</label><select value={newQuestion.academicYear} onChange={(e) => setNewQuestion({...newQuestion, academicYear: e.target.value})} className="w-full border rounded-xl p-3 outline-none bg-white"><option value="2569">2569</option><option value="2570">2570</option><option value="2571">2571</option></select></div>
+                    </div>
+                    <div><label className="block text-sm font-medium mb-2">รายวิชา</label><select value={newQuestion.subject} onChange={(e) => setNewQuestion({...newQuestion, subject: e.target.value})} className="w-full border rounded-xl p-3 outline-none bg-white">{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                    <div><label className="block text-sm font-medium mb-2">คำถาม</label><textarea value={newQuestion.question} onChange={(e) => setNewQuestion({...newQuestion, question: e.target.value})} className="w-full border rounded-xl p-3 outline-none h-24" required /></div>
+                    <div className="space-y-4"><label className="block text-sm font-medium">ตัวเลือก (เลือกข้อที่ถูก)</label>
+                      {newQuestion.choices.map((choice, index) => (
+                        <div key={index} className="flex items-center space-x-3">
+                          <input type="radio" name="correctAnswer" checked={newQuestion.correctAnswer === index} onChange={() => setNewQuestion({...newQuestion, correctAnswer: index})} className="w-5 h-5 cursor-pointer" />
+                          <input type="text" value={choice} onChange={(e) => handleChoiceChange(index, e.target.value)} className="flex-1 border rounded-lg p-3 outline-none" required />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="pt-6 border-t"><button type="submit" disabled={isSaving} className={`w-full py-3 px-4 rounded-xl font-medium text-white ${isSaving ? 'bg-orange-400' : 'bg-orange-500 hover:bg-orange-600'}`}>{isSaving ? '⏳ กำลังบันทึก...' : '💾 บันทึกข้อสอบ'}</button></div>
+                  </form>
+                </div>
+              </div>
+            );
+          }
+
+          if (currentView === 'quiz') {
+            const q = quizQuestions[currentQuestionIndex];
+            return (
+              <div className="min-h-screen p-4 flex flex-col items-center justify-center">
+                <div className="max-w-2xl w-full">
+                  <div className="flex justify-between items-center mb-6 px-2">
+                    <div className="flex flex-col"><span className="text-sm font-semibold text-blue-600 mb-1">วิชา: {q.subject}</span><span className="text-sm font-semibold text-gray-500">ข้อที่ {currentQuestionIndex + 1} จาก {quizQuestions.length}</span></div>
+                    <button onClick={goHome} className="text-sm text-gray-500 bg-white px-3 py-1.5 rounded-lg border shadow-sm">ออกจากการทดสอบ</button>
+                  </div>
+                  <div className="bg-white rounded-2xl shadow-lg p-6 md:p-10">
+                    <h2 className="text-2xl font-bold mb-8">{q.question}</h2>
+                    <div className="space-y-3">
+                      {q.choices.map((choice, index) => (
+                        <button key={index} onClick={() => handleAnswerSelect(index)} className="w-full text-left p-4 rounded-xl border-2 hover:border-blue-500 hover:bg-blue-50 transition-all font-medium text-lg">{choice}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          if (currentView === 'result') {
+            return (
+              <div className="min-h-screen flex flex-col items-center py-12 px-4 relative">
+                <button onClick={handleLogout} className="absolute top-4 right-4 bg-white px-4 py-2 rounded-lg shadow-sm"><span>🚪 ออกจากระบบ</span></button>
+                <div className="max-w-2xl w-full">
+                  <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 text-center mt-6">
+                    <h2 className="text-3xl font-bold mb-2">สรุปผลคะแนน</h2>
+                    <p className="text-blue-600 font-medium mb-8">วิชา: {quizQuestions[0]?.subject}</p>
+                    <div className="w-32 h-32 mx-auto bg-blue-50 rounded-full flex items-center justify-center mb-8 border-4 border-blue-100"><span className="text-4xl font-bold text-blue-600">{score}/{quizQuestions.length}</span></div>
+                    <div className="flex gap-4 justify-center">
+                      <button onClick={() => startQuiz(quizQuestions[0]?.subject)} className="bg-white border-2 border-blue-600 text-blue-600 py-3 px-6 rounded-xl font-medium">▶️ ทำอีกครั้ง</button>
+                      <button onClick={goHome} className="bg-blue-600 text-white py-3 px-6 rounded-xl font-medium">📋 กลับหน้าหลัก</button>
+                    </div>
+                  </div>
+                  <h3 className="text-xl font-bold mb-4 px-2">เฉลยคำตอบ</h3>
+                  <div className="space-y-4">
+                    {quizQuestions.map((q, index) => {
+                      const userAnswer = userAnswers.find(ua => ua.questionId === q.id);
+                      const isCorrect = userAnswer?.isCorrect;
+                      return (
+                        <div key={q.id} className={`bg-white rounded-xl p-6 border-l-4 shadow-sm ${isCorrect ? 'border-l-green-500' : 'border-l-red-500'}`}>
+                          <div className="flex items-start justify-between gap-4 mb-4"><h4 className="font-medium text-gray-900">{index + 1}. {q.question}</h4><span>{isCorrect ? '✅' : '❌'}</span></div>
+                          <div className="text-sm space-y-2">
+                            <p className="flex"><span className="w-24 text-gray-500">คำตอบของคุณ:</span><span className={isCorrect ? 'text-green-600' : 'text-red-600'}>{q.choices[userAnswer?.selected]}</span></p>
+                            {!isCorrect && <p className="flex"><span className="w-24 text-gray-500">คำตอบที่ถูก:</span><span className="text-green-600">{q.choices[q.correctAnswer]}</span></p>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          return null;
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
 </body>
 </html>
