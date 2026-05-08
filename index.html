@@ -31,24 +31,12 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // URL สำหรับเชื่อมต่อกับ Google Apps Script
         const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxMBgb7QIrRXZSPzQinL0ECuSshUQC-L65BWrni5IXmGXtYJ447SQs1e5PItmnnzTiB/exec';
 
-        const SUBJECTS = [
-            "ภาษาไทย", "ภาษาต่างประเทศ", "คณิตศาสตร์", "วิทยาศาสตร์",
-            "เทคโนโลยีดิจิทัล", "การงานอาชีพ", "สุขภาวะและศิลปะ", 
-            "สังคมศึกษา ประวัติศาสตร์ และหน้าที่พลเมือง"
-        ];
-
+        const SUBJECTS = ["ภาษาไทย", "ภาษาต่างประเทศ", "คณิตศาสตร์", "วิทยาศาสตร์", "เทคโนโลยีดิจิทัล", "การงานอาชีพ", "สุขภาวะและศิลปะ", "สังคมศึกษา ประวัติศาสตร์ และหน้าที่พลเมือง"];
         const LEVELS = ["ประถมศึกษา", "มัธยมศึกษาตอนต้น", "มัธยมศึกษาตอนปลาย"];
-        
-        const TEACHERS = [
-            "นางกัญญาทิพ เสนาะวงศ์", "นางสาวนงนุข สถาพร", "นางสาวนริศรา อิ่มวงษ์", 
-            "นางสาววลีพร ใจตั้ง", "นางสาวศุวาริน เกิดวัน", "นางสาวเจนจิรา ธินาพิมพ์", 
-            "นางสาวอภิญญา มะลิลา", "นางสาวเนตรนภา ธินาพิมพ์", "นางสาวจุฑามาศ ถาพร", 
-            "นางสาววรพรรณ แสนโท"
-        ];
-
+        const OBJECTIVES = ["ความรู้", "ความเข้าใจ", "การวิเคราะห์", "การสังเคราะห์"];
+        const TEACHERS = ["นางกัญญาทิพ เสนาะวงศ์", "นางสาวนงนุข สถาพร", "นางสาวนริศรา อิ่มวงษ์", "นางสาววลีพร ใจตั้ง", "นางสาวศุวาริน เกิดวัน", "นางสาวเจนจิรา ธินาพิมพ์", "นางสาวอภิญญา มะลิลา", "นางสาวเนตรนภา ธินาพิมพ์", "นางสาวจุฑามาศ ถาพร", "นางสาววรพรรณ แสนโท"];
         const SKR_LOCATIONS = ["คลองโยง", "มหาสวัสดิ์", "ศาลายา"];
         const YEAR_OPTIONS = ["2568", "2569", "2570", "2571", "อื่น ๆ (ระบุ)"];
 
@@ -71,17 +59,17 @@
             const [selectedSetName, setSelectedSetName] = useState('');
             const [saveStatus, setSaveStatus] = useState('idle'); 
 
-            // ตัวกรองในหน้าจัดการ
             const [filterSubject, setFilterSubject] = useState('ทั้งหมด');
             const [filterLevel, setFilterLevel] = useState('ทั้งหมด');
-            const [filterTeacher, setFilterTeacher] = useState('ทั้งหมด'); // ตัวกรองใหม่
+            const [filterTeacher, setFilterTeacher] = useState('ทั้งหมด');
             
             const [isSaving, setIsSaving] = useState(false);
             const [editMode, setEditMode] = useState(false);
             const [oldData, setOldData] = useState({ question: '', level: '', subject: '' });
             
             const [newQuestion, setNewQuestion] = useState({
-                semester: '1', academicYear: '2569', level: LEVELS[0], subject: SUBJECTS[0], teacherName: TEACHERS[0], question: '', choices: ['', '', '', ''], correctAnswer: 0
+                semester: '1', academicYear: '2569', level: LEVELS[0], subject: SUBJECTS[0], 
+                teacherName: TEACHERS[0], objective: OBJECTIVES[0], question: '', choices: ['', '', '', ''], correctAnswer: 0
             });
             const [customYear, setCustomYear] = useState('');
 
@@ -97,7 +85,6 @@
                         if (result.status === 'success') setQuestions(result.data);
                     } catch (e) {
                         console.error("Parse error", text);
-                        if (isManual) alert("ข้อผิดพลาดในการโหลดข้อมูล");
                     }
                 } catch (error) { console.error(error); } 
                 finally { setIsLoadingData(false); setIsRefreshing(false); }
@@ -184,7 +171,7 @@
             };
 
             // --- UI Renders ---
-            if (isLoadingData && currentView === 'login') return <div className="min-h-screen flex flex-col items-center justify-center bg-blue-50 text-blue-600 font-bold"><div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>กำลังดึงข้อมูล...</div>;
+            if (isLoadingData && currentView === 'login') return <div className="min-h-screen flex flex-col items-center justify-center bg-blue-50 text-blue-600 font-bold">กำลังโหลดคลังข้อสอบ...</div>;
 
             if (currentView === 'login') return (
                 <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
@@ -193,7 +180,7 @@
                             <div className="text-7xl mb-6">👨‍🎓</div><h2 className="text-3xl font-bold text-gray-800 mb-8 font-black">สำหรับผู้เรียน</h2>
                             <button onClick={() => { setUserRole('student'); setCurrentView('student-info'); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-lg transition-all active:scale-95">เข้าสู่ระบบ</button>
                         </div>
-                        <div className="bg-white rounded-3xl shadow-2xl p-10 text-center border-t-8 border-orange-500">
+                        <div className="bg-white rounded-3xl shadow-2xl p-10 text-center border-t-8 border-orange-500 transition hover:shadow-orange-300">
                             <div className="text-7xl mb-6">🔐</div><h2 className="text-3xl font-bold text-gray-800 mb-2 font-black">สำหรับครู</h2>
                             <form onSubmit={handleTeacherLogin} className="space-y-4">
                                 <div className="relative">
@@ -212,7 +199,7 @@
                     <form onSubmit={(e) => { e.preventDefault(); setCurrentView('select-subject'); }} className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 border-t-8 border-blue-600 space-y-6 animate-fade-in">
                         <h2 className="text-2xl font-bold text-center font-black">ข้อมูลผู้เข้าสอบ</h2>
                         <div className="space-y-4">
-                            <input type="text" placeholder="ชื่อ-นามสกุล" value={studentInfo.name} onChange={(e)=>setStudentInfo({...studentInfo, name: e.target.value})} className="w-full border-2 p-4 rounded-2xl outline-none" required />
+                            <input type="text" placeholder="ชื่อ-นามสกุล" value={studentInfo.name} onChange={(e)=>setStudentInfo({...studentInfo, name: e.target.value})} className="w-full border-2 p-4 rounded-2xl outline-none focus:border-blue-500" required />
                             <select value={studentInfo.level} onChange={(e)=>setStudentInfo({...studentInfo, level: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-white font-bold text-blue-700" required>
                                 <option value="">-- เลือกระดับชั้น --</option>{LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
                             </select>
@@ -283,7 +270,7 @@
                         <div className="bg-blue-50 p-8 rounded-[2rem] mb-10 border-2 border-blue-100 text-blue-900 font-bold">{studentInfo.name}<br/>{studentInfo.level}<br/>{selectedSubjectName} ({selectedSetName})</div>
                         <div className="w-40 h-40 mx-auto rounded-full border-[14px] border-blue-600 flex flex-col items-center justify-center mb-8 bg-white"><span className="text-6xl font-black text-blue-600">{score}</span><span className="text-gray-400 font-bold text-sm">/ {quizQuestions.length}</span></div>
                         <div className="mb-8">{saveStatus === 'saving' && <div className="text-orange-500 font-bold italic animate-pulse">⏳ กำลังบันทึกคะแนน...</div>}{saveStatus === 'success' && <div className="text-green-600 font-bold">✅ บันทึกสำเร็จ!</div>}</div>
-                        <button onClick={()=>setCurrentView('select-subject')} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xl shadow-xl transition-all">ทำวิชาอื่นต่อ</button>
+                        <button onClick={()=>setCurrentView('select-subject')} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xl shadow-xl transition-all shadow-lg active:scale-95">ทำวิชาอื่นต่อ</button>
                     </div>
                 </div>
             );
@@ -293,7 +280,7 @@
                     <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-10 border-t-8 border-orange-500 space-y-4">
                         <h1 className="text-2xl font-bold text-gray-700 uppercase font-black">จัดการระบบ (ครู)</h1>
                         <button onClick={() => { setEditMode(false); setCustomYear(''); setCurrentView('add'); }} className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold shadow-md transition-all hover:bg-emerald-600">+ เพิ่มข้อสอบใหม่</button>
-                        <button onClick={() => setCurrentView('manage')} className="w-full bg-orange-500 text-white py-4 rounded-2xl font-bold shadow-md hover:bg-orange-600 transition-all">📋 จัดการคลังข้อสอบ ({questions.length})</button>
+                        <button onClick={() => setCurrentView('manage')} className="w-full bg-orange-500 text-white py-4 rounded-2xl font-bold shadow-md transition-all hover:bg-orange-600">📋 จัดการคลังข้อสอบ ({questions.length})</button>
                         <button onClick={handleLogout} className="w-full border-2 py-4 rounded-2xl font-bold text-gray-400 hover:text-red-500 transition-all">ออกจากระบบ</button>
                     </div>
                 </div>
@@ -310,14 +297,13 @@
                     <div className="min-h-screen p-4 md:p-8 bg-white max-w-5xl mx-auto animate-fade-in">
                         <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                             <button onClick={() => setCurrentView('menu')} className="text-orange-500 font-bold underline transition-all">⬅️ กลับเมนู</button>
-                            <h2 className="text-2xl font-bold text-gray-700 font-black">จัดการคลังข้อสอบ</h2>
+                            <h2 className="text-2xl font-bold text-gray-700 font-black text-center">จัดการคลังข้อสอบ</h2>
                             <div className="flex gap-2">
                                 <button onClick={() => fetchQuestionsFromSheets(true)} className="bg-white px-4 py-2 rounded-xl border flex items-center gap-2 font-bold text-gray-600 shadow-sm transition-all hover:bg-blue-50"><span className={isRefreshing ? 'spin-anim':''}>🔄</span></button>
-                                <button onClick={() => { setEditMode(false); setCustomYear(''); setCurrentView('add'); }} className="bg-emerald-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg transition-all hover:bg-emerald-600">+ เพิ่ม</button>
+                                <button onClick={() => { setEditMode(false); setCustomYear(''); setCurrentView('add'); }} className="bg-emerald-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg hover:bg-emerald-600 transition-all">+ เพิ่ม</button>
                             </div>
                         </div>
 
-                        {/* ส่วนตัวกรอง 3 รายการ */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 bg-slate-50 p-6 rounded-3xl text-sm">
                             <div className="flex flex-col">
                                 <label className="text-[10px] font-bold text-gray-400 ml-2 uppercase tracking-widest mb-1">ชีตวิชา</label>
@@ -349,6 +335,7 @@
                                         <span className="bg-blue-50 text-blue-600 text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider">ระดับ: {q.level}</span>
                                         <span className="bg-orange-50 text-orange-600 text-[10px] px-3 py-1 rounded-full font-bold tracking-wider">วิชา: {q.subject}</span>
                                         <span className="bg-emerald-50 text-emerald-600 text-[10px] px-3 py-1 rounded-full font-bold tracking-wider">ผู้ออกข้อสอบ: {q.teacherName}</span>
+                                        <span className="bg-purple-50 text-purple-600 text-[10px] px-3 py-1 rounded-full font-bold tracking-wider font-black uppercase">จุดประสงค์: {q.objective}</span>
                                     </div>
                                     <p className="font-bold text-gray-800 text-xl mb-6 pr-10 leading-relaxed border-b border-gray-50 pb-4">{q.question}</p>
                                     
@@ -357,7 +344,7 @@
                                             <div key={idx} className={`flex items-start gap-2 p-2 rounded-lg text-sm ${idx === q.correctAnswer ? 'bg-green-100 text-green-700 font-bold ring-1 ring-green-400' : 'text-gray-500'}`}>
                                                 <span className="font-black min-w-[20px]">{['ก.','ข.','ค.','ง.'][idx]}</span>
                                                 <span>{choice}</span>
-                                                {idx === q.correctAnswer && <span className="ml-auto text-[10px] bg-green-500 text-white px-2 py-0.5 rounded-full">เฉลย</span>}
+                                                {idx === q.correctAnswer && <span className="ml-auto text-[10px] bg-green-500 text-white px-2 py-0.5 rounded-full font-bold">เฉลย</span>}
                                             </div>
                                         ))}
                                     </div>
@@ -366,7 +353,17 @@
                                         <button onClick={() => { 
                                             setEditMode(true); 
                                             setOldData({ question: q.question, level: q.level, subject: q.subject });
-                                            setNewQuestion({ semester: q.semester || '1', academicYear: YEAR_OPTIONS.includes(q.academicYear) ? q.academicYear : 'อื่น ๆ (ระบุ)', level: q.level, subject: q.subject, teacherName: q.teacherName, question: q.question, choices: [...q.choices], correctAnswer: q.correctAnswer });
+                                            setNewQuestion({ 
+                                                semester: q.semester || '1', 
+                                                academicYear: YEAR_OPTIONS.includes(q.academicYear) ? q.academicYear : 'อื่น ๆ (ระบุ)', 
+                                                level: q.level, 
+                                                subject: q.subject, 
+                                                teacherName: q.teacherName,
+                                                objective: q.objective || OBJECTIVES[0],
+                                                question: q.question, 
+                                                choices: [...q.choices], 
+                                                correctAnswer: q.correctAnswer 
+                                            });
                                             if(!YEAR_OPTIONS.includes(q.academicYear)) setCustomYear(q.academicYear);
                                             setCurrentView('add');
                                         }} className="bg-blue-50 text-blue-600 px-6 py-2 rounded-xl text-sm font-bold hover:bg-blue-600 hover:text-white transition-all shadow-sm">แก้ไข</button>
@@ -387,24 +384,34 @@
                             <div><label className="text-xs font-bold text-gray-400 ml-1 tracking-widest uppercase">ภาคเรียน</label><select value={newQuestion.semester} onChange={(e)=>setNewQuestion({...newQuestion, semester: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-gray-50 font-bold outline-none focus:border-orange-400"><option value="1">1</option><option value="2">2</option></select></div>
                             <div><label className="text-xs font-bold text-gray-400 ml-1 tracking-widest uppercase">ปีการศึกษา</label><select value={newQuestion.academicYear} onChange={(e)=>setNewQuestion({...newQuestion, academicYear: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-gray-50 font-bold outline-none focus:border-orange-400">{YEAR_OPTIONS.map(y=><option key={y} value={y}>{y}</option>)}</select></div>
                         </div>
-                        {newQuestion.academicYear === 'อื่น ๆ (ระบุ)' && (<div className="animate-fade-in text-left"><label className="text-xs font-bold text-orange-500 ml-1 italic animate-pulse">ระบุปี พ.ศ. เช่น 2575</label><input type="text" placeholder="ระบุปี พ.ศ. ที่ต้องการ..." value={customYear} onChange={(e)=>setCustomYear(e.target.value)} className="w-full border-2 border-orange-200 p-4 rounded-2xl outline-none bg-orange-50 font-bold font-black" required /></div>)}
+                        {newQuestion.academicYear === 'อื่น ๆ (ระบุ)' && (<div className="animate-fade-in text-left"><label className="text-xs font-bold text-orange-500 ml-1 italic">ระบุปี พ.ศ. เช่น 2575</label><input type="text" placeholder="ระบุปี พ.ศ. ที่ต้องการ..." value={customYear} onChange={(e)=>setCustomYear(e.target.value)} className="w-full border-2 border-orange-200 p-4 rounded-2xl outline-none bg-orange-50 font-bold font-black" required /></div>)}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
                             <div><label className="text-xs font-bold text-gray-400 ml-1 tracking-widest uppercase">ระดับชั้น</label><select value={newQuestion.level} onChange={(e)=>setNewQuestion({...newQuestion, level: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-gray-50 font-bold outline-none focus:border-orange-400">{LEVELS.map(l => <option key={l} value={l}>{l}</option>)}</select></div>
                             <div><label className="text-xs font-bold text-gray-400 ml-1 tracking-widest uppercase">วิชา (จัดเก็บลงชีตวิชานี้)</label><select value={newQuestion.subject} onChange={(e)=>setNewQuestion({...newQuestion, subject: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-gray-50 font-bold outline-none focus:border-orange-400">{SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
                         </div>
-                        <div className="text-left">
-                            <label className="text-xs font-bold text-gray-400 ml-1 tracking-widest uppercase">ครูผู้ออกข้อสอบ</label>
-                            <select value={newQuestion.teacherName} onChange={(e)=>setNewQuestion({...newQuestion, teacherName: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-emerald-50 font-bold text-emerald-700 outline-none focus:border-emerald-400" required>
-                                {TEACHERS.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
+                            <div className="flex flex-col">
+                                <label className="text-xs font-bold text-gray-400 ml-1 tracking-widest uppercase">ครูผู้ออกข้อสอบ</label>
+                                <select value={newQuestion.teacherName} onChange={(e)=>setNewQuestion({...newQuestion, teacherName: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-emerald-50 font-bold text-emerald-700 outline-none focus:border-emerald-400" required>
+                                    {TEACHERS.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                            <div className="flex flex-col">
+                                <label className="text-xs font-bold text-gray-400 ml-1 tracking-widest uppercase font-black text-purple-600">จุดประสงค์การวัดผล</label>
+                                <select value={newQuestion.objective} onChange={(e)=>setNewQuestion({...newQuestion, objective: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-purple-50 font-bold text-purple-700 outline-none focus:border-purple-400" required>
+                                    {OBJECTIVES.map(obj => <option key={obj} value={obj}>{obj}</option>)}
+                                </select>
+                            </div>
                         </div>
+
                         <div><label className="text-xs font-bold text-gray-400 ml-1 block text-left uppercase tracking-widest">โจทย์คำถาม</label><textarea placeholder="พิมพ์โจทย์คำถามที่นี่..." value={newQuestion.question} onChange={(e)=>setNewQuestion({...newQuestion, question: e.target.value})} className="w-full border-2 p-6 rounded-2xl h-36 bg-gray-50 outline-none focus:border-orange-500 font-bold transition-all shadow-inner" required /></div>
                         <div className="space-y-4 text-left"><label className="text-xs font-bold text-gray-400 ml-1 uppercase tracking-widest">ตัวเลือก (เลือก 1 ข้อที่ถูก)</label>
                             {newQuestion.choices.map((c, i) => (
                                 <div key={i} className="flex gap-4 items-center group"><input type="radio" checked={newQuestion.correctAnswer === i} onChange={()=>setNewQuestion({...newQuestion, correctAnswer: i})} className="w-6 h-6 accent-orange-500 cursor-pointer" /><input type="text" placeholder={`ตัวเลือกที่ ${i+1}`} value={c} onChange={(e)=>{ let nc = [...newQuestion.choices]; nc[i] = e.target.value; setNewQuestion({...newQuestion, choices: nc}); }} className="flex-1 border-2 border-gray-50 p-4 rounded-2xl bg-gray-50 outline-none focus:border-orange-400 font-medium transition-all" required /></div>
                             ))}
                         </div>
-                        <div className="flex gap-4 pt-8"><button type="button" onClick={()=>{ setEditMode(false); setCustomYear(''); setCurrentView('manage'); }} className="flex-1 bg-gray-100 py-5 rounded-2xl font-black text-gray-400 transition-all hover:bg-gray-200 text-sm">ยกเลิก</button><button type="submit" disabled={isSaving} className="flex-[2] bg-orange-500 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all hover:bg-orange-600 shadow-orange-100">{isSaving ? '⏳ กำลังบันทึก...' : (editMode ? '💾 บันทึกทับแถวเดิม' : '💾 บันทึกลงชีตวิชา')}</button></div>
+                        <div className="flex gap-4 pt-8"><button type="button" onClick={()=>{ setEditMode(false); setCustomYear(''); setCurrentView('manage'); }} className="flex-1 bg-gray-100 py-5 rounded-2xl font-black text-gray-400 transition-all hover:bg-gray-200 text-sm font-bold">ยกเลิก</button><button type="submit" disabled={isSaving} className="flex-[2] bg-orange-500 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all hover:bg-orange-600 shadow-orange-100">{isSaving ? '⏳ กำลังบันทึก...' : (editMode ? '💾 บันทึกทับแถวเดิม' : '💾 บันทึกลงชีตวิชา')}</button></div>
                     </form>
                 </div>
             );
