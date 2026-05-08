@@ -52,7 +52,7 @@
           const [questions, setQuestions] = useState([]);
           const [currentView, setCurrentView] = useState('login'); 
           
-          // ข้อมูลนักเรียนที่กำลังสอบ
+          // ข้อมูลผู้เข้าสอบ
           const [studentInfo, setStudentInfo] = useState({
             name: '',
             level: '',
@@ -63,7 +63,6 @@
           const [score, setScore] = useState(0);
           const [userAnswers, setUserAnswers] = useState([]);
           const [quizQuestions, setQuizQuestions] = useState([]);
-          const [selectedSubject, setSelectedSubject] = useState(''); // เก็บวิชาที่เลือกใน Step 1
           
           // ตัวกรองสำหรับหน้าจัดการ (ครู)
           const [filterSubject, setFilterSubject] = useState('ทั้งหมด');
@@ -102,13 +101,17 @@
               }
             } catch (error) {
               console.error("Error fetching data:", error);
-              alert("ไม่สามารถดึงข้อมูลจาก Google Sheets ได้");
+              // alert("ไม่สามารถดึงข้อมูลจาก Google Sheets ได้");
             } finally {
               setIsLoadingData(false);
             }
           };
 
-          const handleStudentLogin = () => { setUserRole('student'); setCurrentView('menu'); };
+          const handleStudentLogin = () => { 
+            setUserRole('student'); 
+            setCurrentView('student-info'); // เข้ามาแล้วไปหน้ากรอกข้อมูลทันที
+          };
+
           const handleTeacherLogin = (e) => {
             e.preventDefault();
             if (passwordInput === 'admin123') {
@@ -117,15 +120,19 @@
               alert('รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง'); setPasswordInput('');
             }
           };
+
           const handleLogout = () => {
             if(window.confirm('ต้องการออกจากระบบใช่หรือไม่?')) {
-              setUserRole(null); setCurrentView('login');
+              setUserRole(null); 
+              setCurrentView('login');
               setStudentInfo({ name: '', level: '', skr: '' });
-              setSelectedSubject('');
             }
           };
 
-          const goHome = () => setCurrentView('menu');
+          const goHome = () => {
+            if (userRole === 'teacher') setCurrentView('menu');
+            else setCurrentView('login');
+          };
 
           const handleDeleteQuestion = (id) => {
             if (window.confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อสอบนี้จากหน้าเว็บ?')) {
@@ -186,26 +193,24 @@
             }
           };
 
-          // Step 1: เลือกวิชา
-          const startQuizStep1 = (subject) => {
-            setSelectedSubject(subject);
-            setCurrentView('student-info');
-          };
-
-          // Step 2: กรอกข้อมูลและกรองระดับชั้น
-          const startQuizStep2 = (e) => {
+          // Step 1: ยืนยันข้อมูลผู้สอบ และไปเลือกวิชา
+          const submitStudentInfo = (e) => {
             e.preventDefault();
             if (!studentInfo.name || !studentInfo.level || !studentInfo.skr) {
               alert('กรุณากรอกข้อมูลให้ครบทุกช่อง'); return;
             }
+            setCurrentView('select-subject'); // เมื่อได้ระดับชั้นแล้ว ค่อยไปเลือกวิชา
+          };
 
-            // กรองข้อสอบที่ตรงกับวิชาที่เลือกใน Step 1 และระดับชั้นที่เลือกใน Step 2
+          // Step 2: เลือกวิชา และเริ่มทำข้อสอบทันที
+          const startQuiz = (subject) => {
+            // กรองข้อสอบที่ตรงกับวิชา และระดับชั้นที่ผู้เรียนเลือกไว้จากขั้นตอนก่อนหน้า
             const filteredQuestions = questions.filter(q => 
-                q.subject === selectedSubject && q.level === studentInfo.level
+                q.subject === subject && q.level === studentInfo.level
             );
 
             if (filteredQuestions.length === 0) {
-              alert(`ขออภัย ไม่พบข้อสอบวิชา ${selectedSubject} สำหรับระดับ ${studentInfo.level} ในขณะนี้`);
+              alert(`ขออภัย ไม่พบข้อสอบวิชา ${subject} สำหรับระดับ ${studentInfo.level} ในขณะนี้`);
               return;
             }
 
@@ -243,6 +248,7 @@
             );
           }
 
+          // หน้าแรก: Login
           if (currentView === 'login') {
             return (
               <div className="min-h-screen flex items-center justify-center p-4">
@@ -276,7 +282,8 @@
             );
           }
 
-          if (currentView === 'menu') {
+          // หน้าเมนูสำหรับครู
+          if (currentView === 'menu' && userRole === 'teacher') {
             return (
               <div className="min-h-screen flex flex-col items-center justify-center p-4 relative">
                 <button onClick={handleLogout} className="absolute top-4 right-4 flex items-center space-x-2 text-gray-500 hover:text-red-500 bg-white px-4 py-2 rounded-lg shadow-sm">
@@ -285,17 +292,11 @@
                 <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center mt-10">
                   <img src="https://img2.pic.in.th/000ac3156996f8d3f82f03e25393bd1f.png" alt="โลโก้" className="w-32 h-auto mx-auto mb-6 object-contain" />
                   <h1 className="text-3xl font-bold mb-2">ระบบคลังข้อสอบ</h1>
-                  <p className="text-gray-500 mb-2">ยินดีต้อนรับ, {userRole === 'teacher' ? 'ครู' : 'ผู้เรียน'}</p>
+                  <p className="text-gray-500 mb-2">ยินดีต้อนรับ, ครู</p>
                   <p className="text-blue-500 text-sm mb-8 font-medium">✅ ดึงข้อมูลสำเร็จ: {questions.length} ข้อ</p>
-                  
                   <div className="space-y-4">
-                    {userRole === 'teacher' && (
-                      <button onClick={() => setCurrentView('manage')} className="w-full flex items-center justify-center space-x-2 bg-white border-2 border-orange-500 text-orange-600 hover:bg-orange-50 py-3 px-4 rounded-xl font-medium">
-                        <span>📋 จัดการคลังข้อสอบ ({questions.length} ข้อ)</span>
-                      </button>
-                    )}
-                    <button onClick={() => setCurrentView('select-subject')} className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-xl font-medium shadow-lg shadow-blue-200">
-                      <span>▶️ เลือกวิชาทำแบบทดสอบ</span>
+                    <button onClick={() => setCurrentView('manage')} className="w-full flex items-center justify-center space-x-2 bg-white border-2 border-orange-500 text-orange-600 hover:bg-orange-50 py-3 px-4 rounded-xl font-medium">
+                      <span>📋 จัดการคลังข้อสอบ ({questions.length} ข้อ)</span>
                     </button>
                   </div>
                 </div>
@@ -303,22 +304,79 @@
             );
           }
 
+          // หน้ากรอกข้อมูลผู้สอบ (สำหรับนักเรียน)
+          if (currentView === 'student-info') {
+            return (
+              <div className="min-h-screen flex items-center justify-center p-4">
+                <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border-t-4 border-blue-600">
+                  <div className="text-center mb-8">
+                    <img src="https://img2.pic.in.th/000ac3156996f8d3f82f03e25393bd1f.png" alt="โลโก้" className="w-20 h-auto mx-auto mb-4 object-contain" />
+                    <h2 className="text-2xl font-bold text-gray-900">ข้อมูลผู้เข้าสอบ</h2>
+                    <p className="text-gray-500 text-sm">กรุณาระบุข้อมูลเพื่อใช้ในการแสดงผลคะแนน</p>
+                  </div>
+                  <form onSubmit={submitStudentInfo} className="space-y-5">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อ-นามสกุล</label>
+                      <input type="text" placeholder="กรอกชื่อและนามสกุล" value={studentInfo.name} onChange={(e) => setStudentInfo({...studentInfo, name: e.target.value})} className="w-full border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500" required />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">ระดับชั้นของคุณ</label>
+                      <select value={studentInfo.level} onChange={(e) => setStudentInfo({...studentInfo, level: e.target.value})} className="w-full border border-gray-300 rounded-xl p-3 outline-none bg-white focus:ring-2 focus:ring-blue-500 font-bold text-blue-700" required>
+                        <option value="" className="text-gray-400">-- เลือกระดับชั้น --</option>
+                        {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">สังกัด ศกร.</label>
+                      <select value={studentInfo.skr} onChange={(e) => setStudentInfo({...studentInfo, skr: e.target.value})} className="w-full border border-gray-300 rounded-xl p-3 outline-none bg-white focus:ring-2 focus:ring-blue-500" required>
+                        <option value="">-- เลือก ศกร. --</option>
+                        {SKR_LOCATIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="pt-4 flex gap-3">
+                      <button type="button" onClick={() => setCurrentView('login')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-medium transition-colors">ยกเลิก</button>
+                      <button type="submit" className="flex-2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-8 rounded-xl font-medium transition-colors shadow-lg shadow-blue-100">ถัดไป: เลือกวิชา ➡️</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            );
+          }
+
+          // หน้าเลือกวิชา (เฉพาะระดับชั้นที่ผู้สอบเลือก)
           if (currentView === 'select-subject') {
             return (
               <div className="min-h-screen p-4 md:p-8">
-                <div className="max-w-4xl mx-auto">
-                  <div className="flex items-center space-x-4 mb-8">
-                    <button onClick={goHome} className="p-2 hover:bg-gray-200 rounded-full text-xl">⬅️</button>
-                    <h2 className="text-2xl font-bold text-gray-900">เลือกวิชาที่ต้องการทดสอบ</h2>
+                <div className="max-w-5xl mx-auto">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900">เลือกวิชาที่ต้องการทดสอบ</h2>
+                      <p className="text-gray-500">สำหรับระดับ: <span className="font-bold text-blue-600">{studentInfo.level}</span></p>
+                    </div>
+                    <button onClick={() => setCurrentView('student-info')} className="bg-white px-4 py-2 rounded-lg border text-sm hover:bg-gray-50 transition-colors">
+                      แก้ไขข้อมูลผู้สอบ/เปลี่ยนระดับชั้น
+                    </button>
                   </div>
+                  
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {SUBJECTS.map((subject, index) => {
-                      // เช็คจำนวนข้อสอบรวมของวิชานี้ (ทุกระดับ)
-                      const count = questions.filter(q => q.subject === subject).length;
+                      // นับเฉพาะข้อสอบที่ตรงกับ ระดับชั้น ที่เลือกมา
+                      const count = questions.filter(q => q.subject === subject && q.level === studentInfo.level).length;
                       return (
-                        <button key={index} onClick={() => startQuizStep1(subject)} disabled={count === 0} className={`p-6 rounded-xl border-2 text-left flex flex-col h-full ${count > 0 ? 'border-blue-100 bg-white hover:border-blue-500 hover:shadow-md cursor-pointer' : 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'}`}>
-                          <div className="flex-1"><h3 className="font-bold text-lg text-gray-800 mb-2">{subject}</h3></div>
-                          <div className="mt-4 pt-4 border-t border-gray-100"><p className={`text-sm font-medium ${count > 0 ? 'text-blue-600' : 'text-gray-400'}`}>มีข้อสอบทั้งหมด {count} ข้อ</p></div>
+                        <button 
+                          key={index} 
+                          onClick={() => startQuiz(subject)} 
+                          disabled={count === 0} 
+                          className={`p-6 rounded-xl border-2 text-left flex flex-col h-full transition-all ${count > 0 ? 'border-blue-100 bg-white hover:border-blue-500 hover:shadow-md cursor-pointer scale-100 active:scale-95' : 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'}`}
+                        >
+                          <div className="flex-1">
+                            <h3 className="font-bold text-lg text-gray-800 mb-2 leading-tight">{subject}</h3>
+                          </div>
+                          <div className="mt-4 pt-4 border-t border-gray-100">
+                            <p className={`text-sm font-medium ${count > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
+                              {count > 0 ? `พบข้อสอบ ${count} ข้อ` : 'ไม่มีข้อสอบในระดับนี้'}
+                            </p>
+                          </div>
                         </button>
                       );
                     })}
@@ -328,44 +386,7 @@
             );
           }
 
-          if (currentView === 'student-info') {
-            return (
-              <div className="min-h-screen flex items-center justify-center p-4">
-                <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border-t-4 border-blue-600">
-                  <div className="text-center mb-8">
-                    <h2 className="text-2xl font-bold text-gray-900">ข้อมูลผู้เข้าสอบ</h2>
-                    <p className="text-blue-600 font-medium">วิชาที่เลือก: {selectedSubject}</p>
-                  </div>
-                  <form onSubmit={startQuizStep2} className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ชื่อ-สกุล</label>
-                      <input type="text" placeholder="กรอกชื่อและนามสกุล" value={studentInfo.name} onChange={(e) => setStudentInfo({...studentInfo, name: e.target.value})} className="w-full border border-gray-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-blue-500" required />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ระดับชั้นของผู้เรียน</label>
-                      <select value={studentInfo.level} onChange={(e) => setStudentInfo({...studentInfo, level: e.target.value})} className="w-full border border-gray-300 rounded-xl p-3 outline-none bg-white focus:ring-2 focus:ring-blue-500 font-medium text-blue-700" required>
-                        <option value="" className="text-gray-400">-- เลือกระดับชั้นของท่าน --</option>
-                        {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                      </select>
-                      <p className="text-[10px] text-gray-400 mt-1">*ระบบจะแสดงข้อสอบเฉพาะระดับชั้นที่คุณเลือกเท่านั้น</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ศกร.</label>
-                      <select value={studentInfo.skr} onChange={(e) => setStudentInfo({...studentInfo, skr: e.target.value})} className="w-full border border-gray-300 rounded-xl p-3 outline-none bg-white focus:ring-2 focus:ring-blue-500" required>
-                        <option value="">-- เลือก ศกร. --</option>
-                        {SKR_LOCATIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                    <div className="pt-4 flex gap-3">
-                      <button type="button" onClick={() => setCurrentView('select-subject')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-3 rounded-xl font-medium transition-colors">ย้อนกลับ</button>
-                      <button type="submit" className="flex-2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-8 rounded-xl font-medium transition-colors shadow-lg shadow-blue-100">ดึงข้อสอบ {studentInfo.level || ''}</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            );
-          }
-
+          // หน้าจัดการสำหรับครู
           if (currentView === 'manage' && userRole === 'teacher') {
             const filteredQuestions = questions.filter(q => 
                 (filterSubject === 'ทั้งหมด' || q.subject === filterSubject) && 
@@ -378,7 +399,7 @@
                 <div className="max-w-4xl mx-auto print:max-w-full">
                   <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 print:hidden">
                     <div className="flex items-center space-x-4">
-                      <button onClick={goHome} className="p-2 hover:bg-gray-200 rounded-full text-xl">⬅️</button>
+                      <button onClick={goHome} className="p-2 hover:bg-gray-200 rounded-full text-xl text-gray-600 transition-colors">⬅️</button>
                       <h2 className="text-2xl font-bold text-gray-900">จัดการคลังข้อสอบ</h2>
                     </div>
                     <div className="flex flex-wrap gap-2 justify-center md:justify-end w-full md:w-auto">
@@ -420,21 +441,15 @@
                       <div className="bg-white rounded-xl p-8 text-center text-gray-500 shadow-sm print:hidden">ไม่พบข้อสอบที่ตรงกับเงื่อนไขที่เลือก</div>
                     ) : (
                       filteredQuestions.map((q, index) => (
-                        <div key={q.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 relative print:shadow-none print:p-0 print:border-none print:break-inside-avoid print:mb-8">
+                        <div key={q.id} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 relative print:shadow-none print:p-0 print:border-none print:mb-8">
                           <div className="absolute top-4 right-4 flex space-x-2 print:hidden">
                             <button onClick={() => handleEditQuestion(q)} className="p-2 hover:bg-blue-50 rounded-lg" title="แก้ไข">✏️</button>
                             <button onClick={() => handleDeleteQuestion(q.id)} className="p-2 hover:bg-red-50 rounded-lg" title="ลบ">🗑️</button>
                           </div>
                           <div className="flex flex-wrap gap-2 mb-3 print:hidden">
-                            <div className="inline-flex items-center space-x-1 bg-orange-50 text-orange-700 text-xs font-medium px-2.5 py-1 rounded-md">
-                                🏷️ {q.subject}
-                            </div>
-                            <div className="inline-flex items-center space-x-1 bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-md">
-                                🎓 {q.level}
-                            </div>
-                            <div className="inline-flex items-center space-x-1 bg-gray-100 text-gray-600 text-xs font-medium px-2.5 py-1 rounded-md">
-                                📅 เทอม {q.semester}/{q.academicYear}
-                            </div>
+                            <div className="inline-flex items-center space-x-1 bg-orange-50 text-orange-700 text-xs font-medium px-2.5 py-1 rounded-md">🏷️ {q.subject}</div>
+                            <div className="inline-flex items-center space-x-1 bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-md">🎓 {q.level}</div>
+                            <div className="inline-flex items-center space-x-1 bg-gray-100 text-gray-600 text-xs font-medium px-2.5 py-1 rounded-md">📅 เทอม {q.semester}/{q.academicYear}</div>
                           </div>
                           <h3 className="font-semibold text-lg text-gray-800 mb-4 pr-20 print:pr-0">ข้อที่ {index + 1}: {q.question}</h3>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 print:grid-cols-2 print:gap-4">
@@ -455,92 +470,126 @@
             );
           }
 
+          // หน้าเพิ่ม/แก้ไขข้อสอบ (เฉพาะครู)
           if (currentView === 'add' && userRole === 'teacher') {
             return (
               <div className="min-h-screen p-4 md:p-8 flex justify-center items-start">
                 <div className="max-w-2xl w-full bg-white rounded-2xl shadow-sm border p-6 md:p-8">
                   <div className="flex items-center space-x-4 mb-8">
-                    <button onClick={() => setCurrentView('manage')} className="p-2 hover:bg-gray-100 rounded-full text-xl">⬅️</button>
-                    <h2 className="text-2xl font-bold">{editingId ? 'แก้ไขข้อสอบ' : 'สร้างข้อสอบใหม่'}</h2>
+                    <button onClick={() => setCurrentView('manage')} className="p-2 hover:bg-gray-100 rounded-full text-xl text-gray-600">⬅️</button>
+                    <h2 className="text-2xl font-bold text-gray-900">{editingId ? 'แก้ไขข้อสอบ' : 'สร้างข้อสอบใหม่'}</h2>
                   </div>
                   <form onSubmit={handleAddSubmit} className="space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div><label className="block text-sm font-medium mb-2">ระดับชั้น</label><select value={newQuestion.level} onChange={(e) => setNewQuestion({...newQuestion, level: e.target.value})} className="w-full border rounded-xl p-3 outline-none bg-white"><option value="">-- เลือกระดับ --</option>{LEVELS.map(l => <option key={l} value={l}>{l}</option>)}</select></div>
-                      <div><label className="block text-sm font-medium mb-2">ภาคเรียนที่</label><select value={newQuestion.semester} onChange={(e) => setNewQuestion({...newQuestion, semester: e.target.value})} className="w-full border rounded-xl p-3 outline-none bg-white"><option value="1">1</option><option value="2">2</option></select></div>
-                      <div><label className="block text-sm font-medium mb-2">ปีการศึกษา</label><select value={newQuestion.academicYear} onChange={(e) => setNewQuestion({...newQuestion, academicYear: e.target.value})} className="w-full border rounded-xl p-3 outline-none bg-white"><option value="2569">2569</option><option value="2570">2570</option><option value="2571">2571</option></select></div>
+                      <div><label className="block text-sm font-medium mb-2">ระดับชั้น</label><select value={newQuestion.level} onChange={(e) => setNewQuestion({...newQuestion, level: e.target.value})} className="w-full border rounded-xl p-3 outline-none bg-white focus:ring-2 focus:ring-orange-500 font-bold text-orange-700"><option value="">-- เลือกระดับ --</option>{LEVELS.map(l => <option key={l} value={l}>{l}</option>)}</select></div>
+                      <div><label className="block text-sm font-medium mb-2">ภาคเรียนที่</label><select value={newQuestion.semester} onChange={(e) => setNewQuestion({...newQuestion, semester: e.target.value})} className="w-full border rounded-xl p-3 outline-none bg-white focus:ring-2 focus:ring-orange-500"><option value="1">1</option><option value="2">2</option></select></div>
+                      <div><label className="block text-sm font-medium mb-2">ปีการศึกษา</label><select value={newQuestion.academicYear} onChange={(e) => setNewQuestion({...newQuestion, academicYear: e.target.value})} className="w-full border rounded-xl p-3 outline-none bg-white focus:ring-2 focus:ring-orange-500"><option value="2569">2569</option><option value="2570">2570</option><option value="2571">2571</option></select></div>
                     </div>
-                    <div><label className="block text-sm font-medium mb-2">รายวิชา</label><select value={newQuestion.subject} onChange={(e) => setNewQuestion({...newQuestion, subject: e.target.value})} className="w-full border rounded-xl p-3 outline-none bg-white">{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-                    <div><label className="block text-sm font-medium mb-2">คำถาม</label><textarea value={newQuestion.question} onChange={(e) => setNewQuestion({...newQuestion, question: e.target.value})} className="w-full border rounded-xl p-3 outline-none h-24 focus:ring-2 focus:ring-orange-500" required /></div>
-                    <div className="space-y-4"><label className="block text-sm font-medium">ตัวเลือก (เลือกข้อที่ถูก)</label>
+                    <div><label className="block text-sm font-medium mb-2">รายวิชา</label><select value={newQuestion.subject} onChange={(e) => setNewQuestion({...newQuestion, subject: e.target.value})} className="w-full border rounded-xl p-3 outline-none bg-white focus:ring-2 focus:ring-orange-500 font-bold">{SUBJECTS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                    <div><label className="block text-sm font-medium mb-2">คำถาม</label><textarea value={newQuestion.question} onChange={(e) => setNewQuestion({...newQuestion, question: e.target.value})} className="w-full border rounded-xl p-3 outline-none h-24 focus:ring-2 focus:ring-orange-500" placeholder="ระบุโจทย์คำถาม..." required /></div>
+                    <div className="space-y-4"><label className="block text-sm font-medium">ตัวเลือก (เลือก 1 ข้อที่ถูกต้องที่สุด)</label>
                       {newQuestion.choices.map((choice, index) => (
                         <div key={index} className="flex items-center space-x-3">
                           <input type="radio" name="correctAnswer" checked={newQuestion.correctAnswer === index} onChange={() => setNewQuestion({...newQuestion, correctAnswer: index})} className="w-5 h-5 cursor-pointer accent-orange-500" />
-                          <input type="text" value={choice} onChange={(e) => handleChoiceChange(index, e.target.value)} className="flex-1 border rounded-lg p-3 outline-none focus:ring-2 focus:ring-orange-500" required />
+                          <input type="text" value={choice} onChange={(e) => handleChoiceChange(index, e.target.value)} className="flex-1 border rounded-lg p-3 outline-none focus:ring-2 focus:ring-orange-500" placeholder={`ตัวเลือกที่ ${index+1}`} required />
                         </div>
                       ))}
                     </div>
-                    <div className="pt-6 border-t"><button type="submit" disabled={isSaving} className={`w-full py-3 px-4 rounded-xl font-medium text-white ${isSaving ? 'bg-orange-400' : 'bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-100'}`}>{isSaving ? '⏳ กำลังบันทึก...' : '💾 บันทึกข้อสอบ'}</button></div>
+                    <div className="pt-6 border-t"><button type="submit" disabled={isSaving} className={`w-full py-4 px-4 rounded-xl font-bold text-white transition-all ${isSaving ? 'bg-orange-400' : 'bg-orange-500 hover:bg-orange-600 shadow-lg shadow-orange-100 hover:translate-y-[-2px]'}`}>{isSaving ? '⏳ กำลังบันทึกข้อมูล...' : '💾 บันทึกข้อสอบลงคลังข้อมูล'}</button></div>
                   </form>
                 </div>
               </div>
             );
           }
 
+          // หน้าทำข้อสอบ
           if (currentView === 'quiz') {
             const q = quizQuestions[currentQuestionIndex];
             return (
               <div className="min-h-screen p-4 flex flex-col items-center justify-center">
                 <div className="max-w-2xl w-full">
-                  <div className="flex justify-between items-center mb-6 px-2">
+                  <div className="flex justify-between items-start mb-6 px-2">
                     <div className="flex flex-col">
-                      <span className="text-sm font-semibold text-blue-600 mb-1">วิชา: {q.subject}</span>
-                      <span className="text-sm font-semibold text-gray-500">ผู้สอบ: {studentInfo.name} ({studentInfo.level})</span>
-                      <span className="text-xs text-gray-400">ข้อที่ {currentQuestionIndex + 1} จาก {quizQuestions.length}</span>
+                      <span className="text-sm font-bold text-blue-600 mb-1">วิชา: {q.subject} ({studentInfo.level})</span>
+                      <span className="text-sm font-medium text-gray-500">ผู้สอบ: {studentInfo.name}</span>
+                      <span className="text-xs text-gray-400 mt-1 uppercase tracking-widest font-bold">Question {currentQuestionIndex + 1} of {quizQuestions.length}</span>
                     </div>
-                    <button onClick={goHome} className="text-sm text-gray-500 bg-white px-3 py-1.5 rounded-lg border shadow-sm transition-colors hover:text-red-500">ออกจากการทดสอบ</button>
+                    <button onClick={() => setCurrentView('select-subject')} className="text-sm text-gray-400 bg-white px-3 py-1.5 rounded-lg border border-gray-100 shadow-sm transition-all hover:text-red-500 hover:border-red-100">ออกจากการสอบ</button>
                   </div>
-                  <div className="bg-white rounded-2xl shadow-lg p-6 md:p-10">
-                    <h2 className="text-2xl font-bold mb-8 leading-relaxed">{q.question}</h2>
-                    <div className="space-y-3">
+                  <div className="bg-white rounded-3xl shadow-xl p-8 md:p-12 border border-gray-50">
+                    <h2 className="text-2xl font-bold text-gray-800 mb-10 leading-relaxed">{q.question}</h2>
+                    <div className="space-y-4">
                       {q.choices.map((choice, index) => (
-                        <button key={index} onClick={() => handleAnswerSelect(index)} className="w-full text-left p-4 rounded-xl border-2 border-gray-100 hover:border-blue-500 hover:bg-blue-50 transition-all font-medium text-lg">{choice}</button>
+                        <button 
+                          key={index} 
+                          onClick={() => handleAnswerSelect(index)} 
+                          className="w-full text-left p-5 rounded-2xl border-2 border-gray-100 hover:border-blue-500 hover:bg-blue-50 transition-all font-medium text-lg text-gray-700 active:scale-98"
+                        >
+                          <span className="inline-block w-8 h-8 rounded-full bg-gray-50 text-center leading-8 mr-3 text-sm font-bold text-gray-400">{['ก', 'ข', 'ค', 'ง'][index]}</span>
+                          {choice}
+                        </button>
                       ))}
                     </div>
+                  </div>
+                  <div className="mt-8 w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                    <div className="bg-blue-500 h-full transition-all duration-500" style={{width: `${((currentQuestionIndex) / quizQuestions.length) * 100}%`}}></div>
                   </div>
                 </div>
               </div>
             );
           }
 
+          // หน้าสรุปคะแนน
           if (currentView === 'result') {
             return (
               <div className="min-h-screen flex flex-col items-center py-12 px-4 relative">
-                <button onClick={handleLogout} className="absolute top-4 right-4 bg-white px-4 py-2 rounded-lg shadow-sm"><span>🚪 ออกจากระบบ</span></button>
+                <button onClick={handleLogout} className="absolute top-4 right-4 bg-white px-4 py-2 rounded-lg shadow-sm text-gray-500 hover:text-red-500 transition-colors"><span>🚪 ออกจากระบบ</span></button>
                 <div className="max-w-2xl w-full">
-                  <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 text-center mt-6 border-t-8 border-blue-600">
-                    <h2 className="text-3xl font-bold mb-2">สรุปผลคะแนน</h2>
-                    <div className="mb-6">
-                        <p className="text-lg font-bold text-gray-800">{studentInfo.name}</p>
-                        <p className="text-gray-500 text-sm">{studentInfo.level} | ศกร. {studentInfo.skr}</p>
-                        <p className="text-blue-600 font-medium">วิชา: {quizQuestions[0]?.subject}</p>
+                  <div className="bg-white rounded-3xl shadow-xl p-8 mb-8 text-center mt-6 border-t-8 border-blue-600 overflow-hidden relative">
+                    <div className="absolute top-[-10px] right-[-10px] text-blue-50 opacity-10 text-9xl font-black">SCORE</div>
+                    <h2 className="text-3xl font-bold text-gray-900 mb-2">สรุปผลคะแนน</h2>
+                    <div className="mb-8 bg-blue-50 rounded-2xl py-4 inline-block px-10 border border-blue-100">
+                        <p className="text-xl font-bold text-blue-800">{studentInfo.name}</p>
+                        <p className="text-gray-600 text-sm">{studentInfo.level} | ศกร. {studentInfo.skr}</p>
+                        <p className="text-blue-500 font-medium text-xs mt-2 uppercase tracking-widest underline underline-offset-4">{quizQuestions[0]?.subject}</p>
                     </div>
-                    <div className="w-32 h-32 mx-auto bg-blue-50 rounded-full flex items-center justify-center mb-8 border-4 border-blue-100"><span className="text-4xl font-bold text-blue-600">{score}/{quizQuestions.length}</span></div>
-                    <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                      <button onClick={() => startQuizStep1(quizQuestions[0]?.subject)} className="bg-white border-2 border-blue-600 text-blue-600 py-3 px-6 rounded-xl font-medium transition-colors hover:bg-blue-50">▶️ ทำอีกครั้ง</button>
-                      <button onClick={goHome} className="bg-blue-600 text-white py-3 px-6 rounded-xl font-medium transition-colors hover:bg-blue-700">📋 กลับหน้าหลัก</button>
+                    <div className="w-40 h-40 mx-auto bg-white rounded-full flex flex-col items-center justify-center mb-8 border-[12px] border-blue-600 shadow-inner">
+                        <span className="text-5xl font-black text-blue-600">{score}</span>
+                        <span className="text-xs text-gray-400 font-bold mt-1">/ {quizQuestions.length} คะแนน</span>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center relative z-10">
+                      <button onClick={() => startQuiz(quizQuestions[0]?.subject)} className="bg-white border-2 border-blue-600 text-blue-600 py-3 px-8 rounded-2xl font-bold transition-all hover:bg-blue-50 hover:shadow-lg">▶️ ทำใหม่อีกครั้ง</button>
+                      <button onClick={() => setCurrentView('select-subject')} className="bg-blue-600 text-white py-3 px-8 rounded-2xl font-bold transition-all hover:bg-blue-700 shadow-lg shadow-blue-200">📋 เลือกวิชาอื่น</button>
                     </div>
                   </div>
-                  <h3 className="text-xl font-bold mb-4 px-2">เฉลยคำตอบ</h3>
+                  <h3 className="text-xl font-bold text-gray-800 mb-4 px-2 flex items-center">เฉลยคำตอบ <span className="ml-2 text-sm font-normal text-gray-400">(Review Answers)</span></h3>
                   <div className="space-y-4">
                     {quizQuestions.map((q, index) => {
                       const userAnswer = userAnswers.find(ua => ua.questionId === q.id);
                       const isCorrect = userAnswer?.isCorrect;
                       return (
-                        <div key={q.id} className={`bg-white rounded-xl p-6 border-l-4 shadow-sm ${isCorrect ? 'border-l-green-500' : 'border-l-red-500'}`}>
-                          <div className="flex items-start justify-between gap-4 mb-4"><h4 className="font-medium text-gray-900">{index + 1}. {q.question}</h4><span>{isCorrect ? '✅' : '❌'}</span></div>
-                          <div className="text-sm space-y-2">
-                            <p className="flex"><span className="w-24 text-gray-500">คำตอบของคุณ:</span><span className={isCorrect ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>{q.choices[userAnswer?.selected]}</span></p>
-                            {!isCorrect && <p className="flex"><span className="w-24 text-gray-500">คำตอบที่ถูก:</span><span className="text-green-600 font-medium">{q.choices[q.correctAnswer]}</span></p>}
+                        <div key={q.id} className={`bg-white rounded-2xl p-6 border-l-8 shadow-sm transition-all hover:shadow-md ${isCorrect ? 'border-l-green-500' : 'border-l-red-500'}`}>
+                          <div className="flex items-start justify-between gap-4 mb-4">
+                            <h4 className="font-bold text-gray-800 leading-relaxed">{index + 1}. {q.question}</h4>
+                            <div className={`p-2 rounded-full ${isCorrect ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                                {isCorrect ? <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>}
+                            </div>
+                          </div>
+                          <div className="text-sm space-y-3 bg-gray-50 rounded-xl p-4">
+                            <div className="flex items-center">
+                                <span className="w-28 text-gray-500 font-medium">คำตอบของคุณ:</span>
+                                <span className={`font-bold ${isCorrect ? 'text-green-600' : 'text-red-600'}`}>
+                                    {['ก', 'ข', 'ค', 'ง'][userAnswer?.selected]}. {q.choices[userAnswer?.selected]}
+                                </span>
+                            </div>
+                            {!isCorrect && (
+                                <div className="flex items-center pt-2 border-t border-gray-200 border-dashed">
+                                    <span className="w-28 text-gray-500 font-medium">คำตอบที่ถูก:</span>
+                                    <span className="text-green-600 font-bold underline underline-offset-4">
+                                        {['ก', 'ข', 'ค', 'ง'][q.correctAnswer]}. {q.choices[q.correctAnswer]}
+                                    </span>
+                                </div>
+                            )}
                           </div>
                         </div>
                       );
