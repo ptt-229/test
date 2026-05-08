@@ -4,11 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบคลังข้อสอบ - สกร.อำเภอพุทธมณฑล</title>
+    
+    <!-- โหลด Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- โหลดฟอนต์ K2D -->
     <link href="https://fonts.googleapis.com/css2?family=K2D:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- โหลด React และ Babel -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
     <style>
         body { font-family: 'K2D', sans-serif; background-color: #f8fafc; }
         .quiz-option:hover { border-color: #2563eb; background-color: #eff6ff; }
@@ -21,13 +27,19 @@
 </head>
 <body>
     <div id="root"></div>
+
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // *** สำคัญ: ต้องใส่ URL ของ Web App หลังจากทำการ Deploy (Everyone) ***
+        // URL สำหรับเชื่อมต่อกับ Google Apps Script (ตรวจสอบให้ตรงกับที่ Deploy ล่าสุด)
         const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxMBgb7QIrRXZSPzQinL0ECuSshUQC-L65BWrni5IXmGXtYJ447SQs1e5PItmnnzTiB/exec';
 
-        const SUBJECTS = ["ภาษาไทย", "ภาษาต่างประเทศ", "คณิตศาสตร์", "วิทยาศาสตร์", "เทคโนโลยีดิจิทัล", "การงานอาชีพ", "สุขภาวะและศิลปะ", "สังคมศึกษา ประวัติศาสตร์ และหน้าที่พลเมือง"];
+        const SUBJECTS = [
+            "ภาษาไทย", "ภาษาต่างประเทศ", "คณิตศาสตร์", "วิทยาศาสตร์",
+            "เทคโนโลยีดิจิทัล", "การงานอาชีพ", "สุขภาวะและศิลปะ", 
+            "สังคมศึกษา ประวัติศาสตร์ และหน้าที่พลเมือง"
+        ];
+
         const LEVELS = ["ประถมศึกษา", "มัธยมศึกษาตอนต้น", "มัธยมศึกษาตอนปลาย"];
         const SKR_LOCATIONS = ["คลองโยง", "มหาสวัสดิ์", "ศาลายา"];
         const YEAR_OPTIONS = ["2568", "2569", "2570", "2571", "อื่น ๆ (ระบุ)"];
@@ -40,6 +52,7 @@
             const [showPassword, setShowPassword] = useState(false);
             const [questions, setQuestions] = useState([]);
             const [currentView, setCurrentView] = useState('login'); 
+            
             const [studentInfo, setStudentInfo] = useState({ name: '', level: '', skr: '' });
             const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
             const [score, setScore] = useState(0);
@@ -54,31 +67,33 @@
             const [filterLevel, setFilterLevel] = useState('ทั้งหมด');
             const [isSaving, setIsSaving] = useState(false);
             const [editMode, setEditMode] = useState(false);
+            
+            // ข้อมูลเก่าสำหรับระบุตำแหน่งเดิมใน Sheet (วิชาเดิม, ระดับเดิม, คำถามเดิม)
             const [oldData, setOldData] = useState({ question: '', level: '', subject: '' });
             
-            const [newQuestion, setNewQuestion] = useState({ semester: '1', academicYear: '2569', level: LEVELS[0], subject: SUBJECTS[0], question: '', choices: ['', '', '', ''], correctAnswer: 0 });
+            const [newQuestion, setNewQuestion] = useState({
+                semester: '1', academicYear: '2569', level: LEVELS[0], subject: SUBJECTS[0], question: '', choices: ['', '', '', ''], correctAnswer: 0
+            });
             const [customYear, setCustomYear] = useState('');
 
             useEffect(() => { fetchQuestionsFromSheets(); }, []);
 
             const fetchQuestionsFromSheets = async (isManual = false) => {
-                if (!GOOGLE_SCRIPT_URL || GOOGLE_SCRIPT_URL.includes('macros/s/')) {
-                    if (isManual) setIsRefreshing(true); else setIsLoadingData(true);
+                if (isManual) setIsRefreshing(true); else setIsLoadingData(true);
+                try {
+                    const response = await fetch(GOOGLE_SCRIPT_URL);
+                    const text = await response.text();
                     try {
-                        const response = await fetch(GOOGLE_SCRIPT_URL);
-                        const text = await response.text();
-                        try {
-                            const result = JSON.parse(text);
-                            if (result.status === 'success') setQuestions(result.data);
-                        } catch (e) {
-                            console.error("Response is not JSON:", text);
-                            if(isManual) alert("ข้อผิดพลาด: เซิร์ฟเวอร์ส่งข้อมูลกลับมาไม่ถูกต้อง (อาจต้องกด Deploy ใหม่อีกครั้ง)");
-                        }
-                    } catch (error) {
-                        console.error("Fetch error:", error);
-                    } finally {
-                        setIsLoadingData(false); setIsRefreshing(false);
+                        const result = JSON.parse(text);
+                        if (result.status === 'success') setQuestions(result.data);
+                    } catch (e) {
+                        console.error("Data received is not valid JSON:", text);
+                        if (isManual) alert("ไม่สามารถดึงข้อมูลได้: เซิร์ฟเวอร์ส่งข้อมูลกลับมาไม่ถูกต้อง (กรุณาตรวจสอบ URL หรือกด Deploy ใหม่อีกครั้ง)");
                     }
+                } catch (error) {
+                    console.error("Fetch error:", error);
+                } finally {
+                    setIsLoadingData(false); setIsRefreshing(false);
                 }
             };
 
@@ -111,7 +126,7 @@
                     const res = await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ type: 'delete_question', question: q.question, subject: q.subject, level: q.level }) });
                     const text = await res.text();
                     const result = JSON.parse(text);
-                    if (result.status === 'success') { alert('ลบเรียบร้อยแล้ว'); fetchQuestionsFromSheets(true); }
+                    if (result.status === 'success') { alert('ลบข้อมูลเรียบร้อยแล้ว'); fetchQuestionsFromSheets(true); }
                 } catch (e) { alert('ลบไม่สำเร็จ'); }
                 finally { setIsSaving(false); }
             };
@@ -136,7 +151,7 @@
                     const text = await res.text();
                     const result = JSON.parse(text);
                     if(result.status === 'success') {
-                        alert(editMode ? 'อัปเดตข้อมูลสำเร็จและแยกตามชีตวิชาแล้ว' : 'เพิ่มสำเร็จ');
+                        alert(editMode ? 'แก้ไขสำเร็จและบันทึกทับที่เดิมเรียบร้อย' : 'เพิ่มข้อสอบใหม่สำเร็จ');
                         setEditMode(false); setCustomYear(''); fetchQuestionsFromSheets(true); setCurrentView('manage');
                     }
                 } catch (error) { alert('เกิดข้อผิดพลาดในการบันทึก'); } 
@@ -165,7 +180,7 @@
             };
 
             // --- UI Renders ---
-            if (isLoadingData && currentView === 'login') return <div className="min-h-screen flex flex-col items-center justify-center bg-blue-50 text-blue-600 font-bold">กำลังเชื่อมต่อคลังข้อสอบ...</div>;
+            if (isLoadingData && currentView === 'login') return <div className="min-h-screen flex flex-col items-center justify-center bg-blue-50 text-blue-600 font-bold"><div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>กำลังเชื่อมต่อฐานข้อมูล...</div>;
 
             if (currentView === 'login') return (
                 <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
@@ -189,9 +204,9 @@
             );
 
             if (currentView === 'student-info') return (
-                <div className="min-h-screen flex items-center justify-center p-4">
+                <div className="min-h-screen flex items-center justify-center p-4 bg-blue-50">
                     <form onSubmit={(e) => { e.preventDefault(); setCurrentView('select-subject'); }} className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 border-t-8 border-blue-600 space-y-6">
-                        <h2 className="text-2xl font-bold text-center">ข้อมูลผู้เข้าสอบ</h2>
+                        <h2 className="text-2xl font-bold text-center">ระบุข้อมูลผู้เข้าสอบ</h2>
                         <div className="space-y-4">
                             <input type="text" placeholder="ชื่อ-นามสกุล" value={studentInfo.name} onChange={(e)=>setStudentInfo({...studentInfo, name: e.target.value})} className="w-full border-2 p-4 rounded-2xl outline-none" required />
                             <select value={studentInfo.level} onChange={(e)=>setStudentInfo({...studentInfo, level: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-white font-bold text-blue-700" required>
@@ -211,7 +226,7 @@
                     <div className="flex flex-col sm:flex-row justify-between items-center mb-10 gap-4">
                         <div><h1 className="text-3xl font-bold text-gray-800">เลือกวิชา</h1><p className="text-blue-600 font-bold">ระดับ: {studentInfo.level}</p></div>
                         <div className="flex gap-2">
-                            <button onClick={() => fetchQuestionsFromSheets(true)} className="bg-white px-4 py-2 rounded-xl border flex items-center gap-2 font-bold text-gray-600"><span className={isRefreshing ? 'spin-anim':''}>🔄</span> {isRefreshing ? 'อัปเดต...' : 'รีเฟรช'}</button>
+                            <button onClick={() => fetchQuestionsFromSheets(true)} className="bg-white px-4 py-2 rounded-xl border flex items-center gap-2 font-bold text-gray-600 shadow-sm"><span className={isRefreshing ? 'spin-anim':''}>🔄</span> {isRefreshing ? 'อัปเดต...' : 'รีเฟรช'}</button>
                             <button onClick={handleLogout} className="bg-white px-4 py-2 rounded-xl border text-red-500 font-bold">ออกจากระบบ</button>
                         </div>
                     </div>
@@ -219,7 +234,7 @@
                         {SUBJECTS.map((s, i) => {
                             const count = questions.filter(q => q.subject === s && q.level === studentInfo.level).length;
                             return (
-                                <button key={i} onClick={() => handleSelectSubject(s)} disabled={count === 0} className={`p-8 rounded-3xl border-2 text-left h-full transition-all group ${count > 0 ? 'bg-white border-blue-100 hover:border-blue-500 hover:shadow-xl' : 'bg-gray-100 opacity-50'}`}>
+                                <button key={i} onClick={() => handleSelectSubject(s)} disabled={count === 0} className={`p-8 rounded-3xl border-2 text-left h-full transition-all group ${count > 0 ? 'bg-white border-blue-100 hover:border-blue-500 hover:shadow-xl' : 'bg-gray-100 opacity-50 cursor-not-allowed'}`}>
                                     <h3 className="font-bold text-xl mb-2 leading-tight">{s}</h3><div className="text-xs font-bold text-blue-500">{count > 0 ? `พบข้อสอบ ${count} ข้อ` : 'ไม่มีข้อสอบ'}</div>
                                 </button>
                             );
@@ -234,7 +249,7 @@
                         <h2 className="text-2xl font-bold mb-8 underline underline-offset-8 decoration-blue-500">{selectedSubjectName}</h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             {Array.from({ length: Math.ceil(availableQuestionsForSubject.length / 5) }).map((_, idx) => (
-                                <button key={idx} onClick={() => handleSelectSet(idx * 5, idx + 1)} className="p-6 border-2 border-blue-100 rounded-2xl bg-blue-50 text-blue-700 font-bold transition-all hover:bg-blue-600 hover:text-white">ชุดที่ {idx + 1}<br/><span className="text-xs font-normal">ข้อ {idx * 5 + 1} - {Math.min((idx + 1) * 5, availableQuestionsForSubject.length)}</span></button>
+                                <button key={idx} onClick={() => handleSelectSet(idx * 5, idx + 1)} className="p-6 border-2 border-blue-100 rounded-2xl bg-blue-50 text-blue-700 font-bold transition-all hover:bg-blue-600 hover:text-white transform hover:scale-105">ชุดที่ {idx + 1}<br/><span className="text-xs font-normal">ข้อ {idx * 5 + 1} - {Math.min((idx + 1) * 5, availableQuestionsForSubject.length)}</span></button>
                             ))}
                         </div>
                         <button onClick={() => setCurrentView('select-subject')} className="mt-8 text-gray-400 font-bold">ย้อนกลับ</button>
@@ -247,10 +262,10 @@
                     <div className="max-w-3xl w-full bg-white rounded-[2.5rem] shadow-2xl p-10 md:p-16 relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-2 bg-gray-100"><div className="bg-blue-600 h-full transition-all duration-500" style={{width: `${((currentQuestionIndex)/quizQuestions.length)*100}%`}}></div></div>
                         <div className="flex justify-between mb-8 text-xs font-bold text-gray-400 uppercase tracking-widest"><span>{selectedSubjectName} | {selectedSetName}</span><span>{currentQuestionIndex + 1}/{quizQuestions.length}</span></div>
-                        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-12">{quizQuestions[currentQuestionIndex].question}</h2>
+                        <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-12 leading-relaxed">{quizQuestions[currentQuestionIndex].question}</h2>
                         <div className="grid gap-4">
                             {quizQuestions[currentQuestionIndex].choices.map((c, i) => (
-                                <button key={i} onClick={() => handleAnswerSelect(i)} className="quiz-option w-full text-left p-6 rounded-2xl border-2 border-gray-50 bg-gray-50 transition-all font-bold text-lg flex items-center group"><span className="w-10 h-10 rounded-full bg-white border-2 border-gray-200 text-center leading-9 mr-4 text-sm text-gray-400 group-hover:border-blue-500">{['ก','ข','ค','ง'][i]}</span>{c}</button>
+                                <button key={i} onClick={() => handleAnswerSelect(i)} className="quiz-option w-full text-left p-6 rounded-2xl border-2 border-gray-50 bg-gray-50 transition-all font-bold text-lg flex items-center group"><span className="w-10 h-10 rounded-full bg-white border-2 border-gray-200 text-center leading-9 mr-4 text-sm text-gray-400">{['ก','ข','ค','ง'][i]}</span>{c}</button>
                             ))}
                         </div>
                     </div>
@@ -264,7 +279,7 @@
                         <div className="bg-blue-50 p-8 rounded-[2rem] mb-10 border-2 border-blue-100 text-blue-900 font-bold">{studentInfo.name}<br/>{studentInfo.level}<br/>{selectedSubjectName} ({selectedSetName})</div>
                         <div className="w-40 h-40 mx-auto rounded-full border-[14px] border-blue-600 flex flex-col items-center justify-center mb-8 bg-white"><span className="text-6xl font-black text-blue-600">{score}</span><span className="text-gray-400 font-bold text-sm">/ {quizQuestions.length}</span></div>
                         <div className="mb-8">{saveStatus === 'saving' && <div className="text-orange-500 font-bold italic animate-pulse">⏳ กำลังบันทึกคะแนน...</div>}{saveStatus === 'success' && <div className="text-green-600 font-bold">✅ บันทึกสำเร็จ!</div>}</div>
-                        <button onClick={()=>setCurrentView('select-subject')} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xl shadow-xl transition-all">ทำวิชาอื่นต่อ</button>
+                        <button onClick={()=>setCurrentView('select-subject')} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xl shadow-xl transition-all active:scale-95">ทำวิชาอื่นต่อ</button>
                     </div>
                 </div>
             );
@@ -272,10 +287,10 @@
             if (currentView === 'menu') return (
                 <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 text-center animate-fade-in">
                     <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-10 border-t-8 border-orange-500 space-y-4">
-                        <h1 className="text-2xl font-bold text-gray-700 uppercase">จัดการระบบ (ครู)</h1>
-                        <button onClick={() => { setEditMode(false); setCustomYear(''); setCurrentView('add'); }} className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold shadow-md">+ เพิ่มข้อสอบใหม่</button>
-                        <button onClick={() => setCurrentView('manage')} className="w-full bg-orange-500 text-white py-4 rounded-2xl font-bold shadow-md">📋 จัดการคลังข้อสอบ ({questions.length})</button>
-                        <button onClick={handleLogout} className="w-full border-2 py-4 rounded-2xl font-bold text-gray-400 hover:text-red-500">ออกจากระบบ</button>
+                        <h1 className="text-2xl font-bold text-gray-700 uppercase font-black">จัดการระบบ (ครู)</h1>
+                        <button onClick={() => { setEditMode(false); setCustomYear(''); setCurrentView('add'); }} className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold shadow-md hover:bg-emerald-600 transition-all">+ เพิ่มข้อสอบใหม่</button>
+                        <button onClick={() => setCurrentView('manage')} className="w-full bg-orange-500 text-white py-4 rounded-2xl font-bold shadow-md hover:bg-orange-600 transition-all">📋 จัดการคลังข้อสอบ ({questions.length})</button>
+                        <button onClick={handleLogout} className="w-full border-2 py-4 rounded-2xl font-bold text-gray-400 hover:text-red-500 transition-all">ออกจากระบบ</button>
                     </div>
                 </div>
             );
@@ -288,31 +303,32 @@
                             <button onClick={() => setCurrentView('menu')} className="text-orange-500 font-bold underline">⬅️ กลับเมนู</button>
                             <h2 className="text-2xl font-bold text-gray-700">จัดการคลังข้อสอบ</h2>
                             <div className="flex gap-2">
-                                <button onClick={() => fetchQuestionsFromSheets(true)} className="bg-white px-4 py-2 rounded-xl border flex items-center gap-2 font-bold text-gray-600"><span className={isRefreshing ? 'spin-anim':''}>🔄</span></button>
+                                <button onClick={() => fetchQuestionsFromSheets(true)} className="bg-white px-4 py-2 rounded-xl border flex items-center gap-2 font-bold text-gray-600 shadow-sm"><span className={isRefreshing ? 'spin-anim':''}>🔄</span></button>
                                 <button onClick={() => { setEditMode(false); setCustomYear(''); setCurrentView('add'); }} className="bg-emerald-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg hover:bg-emerald-600 transition-all">+ เพิ่ม</button>
                             </div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 bg-slate-50 p-6 rounded-3xl text-sm">
-                            <div className="flex flex-col"><label className="text-[10px] font-bold text-gray-400 ml-2">กรองตามวิชา (ชีต)</label><select value={filterSubject} onChange={(e)=>setFilterSubject(e.target.value)} className="p-4 rounded-2xl outline-none bg-white shadow-sm"><option value="ทั้งหมด">แสดงทุกวิชา</option>{SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
-                            <div className="flex flex-col"><label className="text-[10px] font-bold text-gray-400 ml-2">กรองตามระดับชั้น</label><select value={filterLevel} onChange={(e)=>setFilterLevel(e.target.value)} className="p-4 rounded-2xl outline-none bg-white shadow-sm"><option value="ทั้งหมด">แสดงทุกระดับ</option>{LEVELS.map(l=><option key={l} value={l}>{l}</option>)}</select></div>
+                            <div className="flex flex-col"><label className="text-[10px] font-bold text-gray-400 ml-2 uppercase tracking-widest">ชีตวิชา</label><select value={filterSubject} onChange={(e)=>setFilterSubject(e.target.value)} className="p-4 rounded-2xl outline-none shadow-sm bg-white"><option value="ทั้งหมด">แสดงทุกวิชา</option>{SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+                            <div className="flex flex-col"><label className="text-[10px] font-bold text-gray-400 ml-2 uppercase tracking-widest">ระดับชั้น</label><select value={filterLevel} onChange={(e)=>setFilterLevel(e.target.value)} className="p-4 rounded-2xl outline-none shadow-sm bg-white"><option value="ทั้งหมด">แสดงทุกระดับ</option>{LEVELS.map(l=><option key={l} value={l}>{l}</option>)}</select></div>
                         </div>
                         <div className="space-y-6">
-                            {filtered.map((q, i) => (
-                                <div key={i} className="border-2 border-gray-100 p-8 rounded-[2.5rem] bg-white relative group transition-all hover:border-blue-200">
+                            {filtered.length === 0 ? <p className="text-center py-10 text-gray-400 font-bold">ไม่พบข้อมูล</p> : filtered.map((q, i) => (
+                                <div key={i} className="border-2 border-gray-100 p-8 rounded-[2.5rem] bg-white relative group transition-all hover:border-blue-200 shadow-sm">
                                     <div className="flex gap-2 mb-4">
-                                        <span className="bg-blue-100 text-blue-600 text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider">ระดับ: {q.level}</span>
-                                        <span className="bg-orange-100 text-orange-600 text-[10px] px-3 py-1 rounded-full font-bold tracking-wider">วิชา: {q.subject}</span>
+                                        <span className="bg-blue-50 text-blue-600 text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-wider">ระดับ: {q.level}</span>
+                                        <span className="bg-orange-50 text-orange-600 text-[10px] px-3 py-1 rounded-full font-bold tracking-wider">วิชา: {q.subject}</span>
                                     </div>
-                                    <p className="font-bold text-gray-800 text-xl mb-6 pr-10">{q.question}</p>
+                                    <p className="font-bold text-gray-800 text-xl mb-6 pr-10 leading-relaxed">{q.question}</p>
                                     <div className="flex justify-end gap-3 pt-4 border-t border-gray-50">
                                         <button onClick={() => { 
                                             setEditMode(true); 
+                                            // จดจำข้อมูลเก่า (ห้ามสลับค่า!)
                                             setOldData({ question: q.question, level: q.level, subject: q.subject });
                                             setNewQuestion({ semester: q.semester || '1', academicYear: YEAR_OPTIONS.includes(q.academicYear) ? q.academicYear : 'อื่น ๆ (ระบุ)', level: q.level, subject: q.subject, question: q.question, choices: [...q.choices], correctAnswer: q.correctAnswer });
                                             if(!YEAR_OPTIONS.includes(q.academicYear)) setCustomYear(q.academicYear);
                                             setCurrentView('add');
-                                        }} className="bg-blue-50 text-blue-600 px-6 py-2 rounded-xl text-sm font-bold transition-all hover:bg-blue-600 hover:text-white">แก้ไข</button>
-                                        <button onClick={() => handleDeleteQuestion(q)} className="bg-red-50 text-red-600 px-6 py-2 rounded-xl text-sm font-bold transition-all hover:bg-red-600 hover:text-white">ลบ</button>
+                                        }} className="bg-blue-50 text-blue-600 px-6 py-2 rounded-xl text-sm font-bold hover:bg-blue-600 hover:text-white transition-all">แก้ไข</button>
+                                        <button onClick={() => handleDeleteQuestion(q)} className="bg-red-50 text-red-600 px-6 py-2 rounded-xl text-sm font-bold hover:bg-red-600 hover:text-white transition-all">ลบ</button>
                                     </div>
                                 </div>
                             ))}
@@ -323,24 +339,24 @@
 
             if (currentView === 'add') return (
                 <div className="min-h-screen p-8 bg-slate-50 flex justify-center items-center animate-fade-in">
-                    <form onSubmit={handleFormSubmit} className="max-w-3xl w-full bg-white rounded-[3rem] p-10 md:p-14 shadow-2xl space-y-6 text-center">
-                        <h2 className="text-3xl font-black mb-6 text-orange-500">{editMode ? '🔄 แก้ไขข้อสอบ' : '➕ สร้างข้อสอบใหม่'}</h2>
+                    <form onSubmit={handleFormSubmit} className="max-w-3xl w-full bg-white rounded-[3rem] p-10 md:p-14 shadow-2xl space-y-6 text-center animate-fade-in">
+                        <h2 className="text-3xl font-black mb-6 text-orange-500 font-black">{editMode ? '🔄 แก้ไขข้อสอบ' : '➕ สร้างข้อสอบใหม่'}</h2>
                         <div className="grid grid-cols-2 gap-4 text-left">
-                            <div><label className="text-xs font-bold text-gray-400 ml-1">ภาคเรียน</label><select value={newQuestion.semester} onChange={(e)=>setNewQuestion({...newQuestion, semester: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-gray-50 font-bold outline-none"><option value="1">1</option><option value="2">2</option></select></div>
-                            <div><label className="text-xs font-bold text-gray-400 ml-1">ปีการศึกษา</label><select value={newQuestion.academicYear} onChange={(e)=>setNewQuestion({...newQuestion, academicYear: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-gray-50 font-bold outline-none">{YEAR_OPTIONS.map(y=><option key={y} value={y}>{y}</option>)}</select></div>
+                            <div><label className="text-xs font-bold text-gray-400 ml-1 tracking-widest uppercase">ภาคเรียน</label><select value={newQuestion.semester} onChange={(e)=>setNewQuestion({...newQuestion, semester: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-gray-50 font-bold outline-none"><option value="1">1</option><option value="2">2</option></select></div>
+                            <div><label className="text-xs font-bold text-gray-400 ml-1 tracking-widest uppercase">ปีการศึกษา</label><select value={newQuestion.academicYear} onChange={(e)=>setNewQuestion({...newQuestion, academicYear: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-gray-50 font-bold outline-none">{YEAR_OPTIONS.map(y=><option key={y} value={y}>{y}</option>)}</select></div>
                         </div>
                         {newQuestion.academicYear === 'อื่น ๆ (ระบุ)' && (<div className="animate-fade-in text-left"><input type="text" placeholder="ระบุปี พ.ศ. เช่น 2575" value={customYear} onChange={(e)=>setCustomYear(e.target.value)} className="w-full border-2 border-orange-200 p-4 rounded-2xl outline-none bg-orange-50 font-bold" required /></div>)}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-                            <div><label className="text-xs font-bold text-gray-400 ml-1">ระดับชั้น</label><select value={newQuestion.level} onChange={(e)=>setNewQuestion({...newQuestion, level: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-gray-50 font-bold outline-none">{LEVELS.map(l=><option key={l} value={l}>{l}</option>)}</select></div>
-                            <div><label className="text-xs font-bold text-gray-400 ml-1">วิชา (จัดเก็บลงชีตนี้)</label><select value={newQuestion.subject} onChange={(e)=>setNewQuestion({...newQuestion, subject: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-gray-50 font-bold outline-none">{SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+                            <div><label className="text-xs font-bold text-gray-400 ml-1 tracking-widest uppercase">ระดับชั้น</label><select value={newQuestion.level} onChange={(e)=>setNewQuestion({...newQuestion, level: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-gray-50 font-bold outline-none">{LEVELS.map(l=><option key={l} value={l}>{l}</option>)}</select></div>
+                            <div><label className="text-xs font-bold text-gray-400 ml-1 tracking-widest uppercase">วิชา (บันทึกลงชีตวิชานี้)</label><select value={newQuestion.subject} onChange={(e)=>setNewQuestion({...newQuestion, subject: e.target.value})} className="w-full border-2 p-4 rounded-2xl bg-gray-50 font-bold outline-none">{SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
                         </div>
-                        <div><textarea placeholder="โจทย์คำถาม..." value={newQuestion.question} onChange={(e)=>setNewQuestion({...newQuestion, question: e.target.value})} className="w-full border-2 p-6 rounded-2xl h-36 bg-gray-50 outline-none focus:border-orange-500 font-bold transition-all" required /></div>
+                        <div><textarea placeholder="พิมพ์คำถาม..." value={newQuestion.question} onChange={(e)=>setNewQuestion({...newQuestion, question: e.target.value})} className="w-full border-2 p-6 rounded-2xl h-36 bg-gray-50 outline-none focus:border-orange-500 font-bold transition-all" required /></div>
                         <div className="space-y-4 text-left"><label className="text-xs font-bold text-gray-400 ml-1 uppercase">ตัวเลือก (เลือก 1 ข้อที่ถูก)</label>
                             {newQuestion.choices.map((c, i) => (
                                 <div key={i} className="flex gap-4 items-center group"><input type="radio" checked={newQuestion.correctAnswer === i} onChange={()=>setNewQuestion({...newQuestion, correctAnswer: i})} className="w-6 h-6 accent-orange-500 cursor-pointer" /><input type="text" placeholder={`ตัวเลือกที่ ${i+1}`} value={c} onChange={(e)=>{ let nc = [...newQuestion.choices]; nc[i] = e.target.value; setNewQuestion({...newQuestion, choices: nc}); }} className="flex-1 border-2 border-gray-50 p-4 rounded-2xl bg-gray-50 outline-none focus:border-orange-400 font-medium" required /></div>
                             ))}
                         </div>
-                        <div className="flex gap-4 pt-8"><button type="button" onClick={()=>{ setEditMode(false); setCustomYear(''); setCurrentView('manage'); }} className="flex-1 bg-gray-100 py-5 rounded-2xl font-black text-gray-400">ยกเลิก</button><button type="submit" disabled={isSaving} className="flex-[2] bg-orange-500 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all">{isSaving ? '⏳ บันทึก...' : (editMode ? '💾 บันทึกทับแถวเดิม' : '💾 บันทึกใหม่')}</button></div>
+                        <div className="flex gap-4 pt-8"><button type="button" onClick={()=>{ setEditMode(false); setCustomYear(''); setCurrentView('manage'); }} className="flex-1 bg-gray-100 py-5 rounded-2xl font-black text-gray-400 transition-all">ยกเลิก</button><button type="submit" disabled={isSaving} className="flex-[2] bg-orange-500 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all">{isSaving ? '⏳ บันทึก...' : (editMode ? '💾 บันทึกทับแถวเดิม' : '💾 บันทึกใหม่')}</button></div>
                     </form>
                 </div>
             );
