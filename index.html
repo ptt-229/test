@@ -10,7 +10,7 @@
     <!-- โหลดฟอนต์ K2D -->
     <link href="https://fonts.googleapis.com/css2?family=K2D:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- โหลด React และ Babel -->
+    <!-- โหลด React และ Babel สำหรับ JSX -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -20,18 +20,12 @@
             font-family: 'K2D', sans-serif; 
             background-color: #f8fafc; 
         }
-        .glass-morphism {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        .quiz-option:hover {
+            border-color: #2563eb;
+            background-color: #eff6ff;
         }
         @media print {
-            body { background: white; }
-            .print\:hidden { display: none !important; }
-            .print\:shadow-none { box-shadow: none !important; border: none !important; }
-            .print\:p-0 { padding: 0 !important; }
-            .print\:mb-4 { margin-bottom: 1rem !important; }
-            .print\:break-inside-avoid { break-inside: avoid; }
+            .print-hidden { display: none !important; }
         }
     </style>
 </head>
@@ -41,7 +35,7 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // URL จาก Google Apps Script (ตรวจสอบให้ตรงกับที่ Deploy ล่าสุด)
+        // URL สำหรับเชื่อมต่อกับ Google Apps Script
         const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxMBgb7QIrRXZSPzQinL0ECuSshUQC-L65BWrni5IXmGXtYJ447SQs1e5PItmnnzTiB/exec';
 
         const SUBJECTS = [
@@ -68,18 +62,18 @@
             const [userAnswers, setUserAnswers] = useState([]);
             const [quizQuestions, setQuizQuestions] = useState([]);
             
+            // สถานะการบันทึกข้อมูล
+            const [saveStatus, setSaveStatus] = useState('idle'); // idle, saving, success, error
+
             // สำหรับคุณครู
             const [filterSubject, setFilterSubject] = useState('ทั้งหมด');
-            const [filterSemester, setFilterSemester] = useState('ทั้งหมด');
-            const [filterAcademicYear, setFilterAcademicYear] = useState('ทั้งหมด');
             const [filterLevel, setFilterLevel] = useState('ทั้งหมด');
-            const [isRefreshing, setIsRefreshing] = useState(false);
             const [isSaving, setIsSaving] = useState(false);
-            const [editingId, setEditingId] = useState(null);
             const [newQuestion, setNewQuestion] = useState({
                 semester: '1', academicYear: '2569', level: LEVELS[0], subject: SUBJECTS[0], question: '', choices: ['', '', '', ''], correctAnswer: 0
             });
 
+            // ดึงข้อมูลเมื่อเริ่มแอป
             useEffect(() => {
                 fetchQuestionsFromSheets();
             }, []);
@@ -112,11 +106,13 @@
                 if(window.confirm('ต้องการออกจากระบบใช่หรือไม่?')) {
                     setUserRole(null); setCurrentView('login');
                     setStudentInfo({ name: '', level: '', skr: '' });
+                    setSaveStatus('idle');
                 }
             };
 
-            // ฟังก์ชันส่งผลคะแนนไปที่ Sheet
+            // ฟังก์ชันส่งผลคะแนนไปบันทึกใน Google Sheets
             const sendResultToSheets = async (finalScore, totalQuestions) => {
+                setSaveStatus('saving');
                 const payload = {
                     type: 'result',
                     timestamp: new Date().toLocaleString('th-TH'),
@@ -130,24 +126,37 @@
                 };
 
                 try {
-                    await fetch(GOOGLE_SCRIPT_URL, {
+                    const response = await fetch(GOOGLE_SCRIPT_URL, {
                         method: 'POST',
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                         body: JSON.stringify(payload)
                     });
+                    const res = await response.json();
+                    if (res.status === 'success') setSaveStatus('success');
+                    else setSaveStatus('error');
                 } catch (error) {
-                    console.error("Save result error:", error);
+                    console.error("Save error:", error);
+                    setSaveStatus('error');
                 }
             };
 
-            const submitStudentInfo = (e) => {
-                e.preventDefault();
-                if (!studentInfo.name || !studentInfo.level || !studentInfo.skr) {
-                    alert('กรุณากรอกข้อมูลให้ครบทุกช่อง'); return;
+            // จัดการเมื่อเลือกคำตอบ
+            const handleAnswerSelect = (choiceIndex) => {
+                const isCorrect = choiceIndex === quizQuestions[currentQuestionIndex].correctAnswer;
+                const newScore = isCorrect ? score + 1 : score;
+                if (isCorrect) setScore(newScore);
+                
+                setUserAnswers([...userAnswers, { selected: choiceIndex, isCorrect }]);
+                
+                if (currentQuestionIndex + 1 < quizQuestions.length) {
+                    setCurrentQuestionIndex(currentQuestionIndex + 1);
+                } else {
+                    setCurrentView('result');
+                    sendResultToSheets(newScore, quizQuestions.length);
                 }
-                setCurrentView('select-subject');
             };
 
+            // เริ่มทำข้อสอบ (กรองตามวิชาและระดับชั้น)
             const startQuiz = (subject) => {
                 const filtered = questions.filter(q => q.subject === subject && q.level === studentInfo.level);
                 if (filtered.length === 0) {
@@ -158,152 +167,112 @@
                 setCurrentQuestionIndex(0); 
                 setScore(0); 
                 setUserAnswers([]); 
+                setSaveStatus('idle');
                 setCurrentView('quiz');
-            };
-
-            const handleAnswerSelect = (choiceIndex) => {
-                const isCorrect = choiceIndex === quizQuestions[currentQuestionIndex].correctAnswer;
-                const newScore = isCorrect ? score + 1 : score;
-                if (isCorrect) setScore(newScore);
-                
-                setUserAnswers([...userAnswers, { questionId: quizQuestions[currentQuestionIndex].id, selected: choiceIndex, isCorrect: isCorrect }]);
-                
-                if (currentQuestionIndex + 1 < quizQuestions.length) {
-                    setCurrentQuestionIndex(currentQuestionIndex + 1);
-                } else {
-                    sendResultToSheets(newScore, quizQuestions.length);
-                    setCurrentView('result');
-                }
             };
 
             const handleAddSubmit = async (e) => {
                 e.preventDefault();
-                if (!newQuestion.question.trim() || newQuestion.choices.some(c => !c.trim())) {
-                  alert('กรุณากรอกคำถามและตัวเลือกให้ครบถ้วน'); return;
-                }
                 setIsSaving(true);
                 try {
-                  const payload = {
-                    type: 'question',
-                    timestamp: new Date().toLocaleString('th-TH'),
-                    semester: newQuestion.semester,
-                    academicYear: newQuestion.academicYear,
-                    level: newQuestion.level,
-                    subject: newQuestion.subject,
-                    question: newQuestion.question,
-                    choice1: newQuestion.choices[0],
-                    choice2: newQuestion.choices[1],
-                    choice3: newQuestion.choices[2],
-                    choice4: newQuestion.choices[3],
-                    correctAnswer: newQuestion.correctAnswer
-                  };
-                  const res = await fetch(GOOGLE_SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify(payload)
-                  });
-                  alert('บันทึกข้อสอบสำเร็จ');
-                  setNewQuestion({ ...newQuestion, question: '', choices: ['', '', '', ''], correctAnswer: 0 });
-                  fetchQuestionsFromSheets();
-                  setCurrentView('manage');
+                    const payload = {
+                        type: 'question',
+                        timestamp: new Date().toLocaleString('th-TH'),
+                        ...newQuestion,
+                        choice1: newQuestion.choices[0],
+                        choice2: newQuestion.choices[1],
+                        choice3: newQuestion.choices[2],
+                        choice4: newQuestion.choices[3]
+                    };
+                    await fetch(GOOGLE_SCRIPT_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                        body: JSON.stringify(payload)
+                    });
+                    alert('บันทึกข้อสอบใหม่เรียบร้อยแล้ว');
+                    setNewQuestion({ ...newQuestion, question: '', choices: ['', '', '', ''] });
+                    fetchQuestionsFromSheets();
+                    setCurrentView('manage');
                 } catch (error) {
-                  alert('เกิดข้อผิดพลาดในการบันทึก');
+                    alert('เกิดข้อผิดพลาดในการบันทึก');
                 } finally {
-                  setIsSaving(false);
+                    setIsSaving(false);
                 }
             };
 
-            // --- UI Renders ---
-            
-            if (isLoadingData && currentView === 'login') return (
-                <div className="min-h-screen flex flex-col items-center justify-center bg-blue-50">
-                    <div className="w-16 h-16 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p className="text-blue-600 font-bold text-xl">กำลังดึงข้อมูลฐานข้อมูล...</p>
-                </div>
-            );
+            // --- ส่วนแสดงผลหน้าจอต่างๆ ---
 
+            // 1. หน้า Login
             if (currentView === 'login') return (
                 <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100">
                     <div className="max-w-4xl w-full grid md:grid-cols-2 gap-8">
-                        <div className="bg-white rounded-3xl shadow-2xl p-10 text-center border-t-8 border-blue-500 transform transition hover:scale-105">
+                        <div className="bg-white rounded-3xl shadow-2xl p-10 text-center border-t-8 border-blue-500 transition hover:shadow-blue-200">
                             <div className="text-6xl mb-6">👨‍🎓</div>
                             <h2 className="text-3xl font-bold text-gray-800 mb-2">สำหรับผู้เรียน</h2>
-                            <p className="text-gray-500 mb-8">เข้าสู่ระบบเพื่อทดสอบความรู้และเก็บคะแนน</p>
-                            <button onClick={() => { setUserRole('student'); setCurrentView('student-info'); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-lg shadow-blue-200 transition-all">เข้าสู่ระบบผู้เรียน</button>
+                            <p className="text-gray-500 mb-8">เข้าทำแบบทดสอบและบันทึกคะแนน</p>
+                            <button onClick={() => { setUserRole('student'); setCurrentView('student-info'); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-lg transition-all active:scale-95">เข้าสู่ระบบผู้เรียน</button>
                         </div>
-                        <div className="bg-white rounded-3xl shadow-2xl p-10 text-center border-t-8 border-orange-500 transform transition hover:scale-105">
+                        <div className="bg-white rounded-3xl shadow-2xl p-10 text-center border-t-8 border-orange-500 transition hover:shadow-orange-200">
                             <div className="text-6xl mb-6">🔐</div>
                             <h2 className="text-3xl font-bold text-gray-800 mb-2">สำหรับครู</h2>
-                            <p className="text-gray-500 mb-6">จัดการคลังข้อสอบและดูผลการเรียน</p>
+                            <p className="text-gray-500 mb-6">จัดการคลังข้อสอบและดูผลสอบ</p>
                             <form onSubmit={handleTeacherLogin} className="space-y-4">
                                 <div className="relative">
-                                    <input type={showPassword ? "text" : "password"} placeholder="รหัสผ่านผู้ดูแล" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full border-2 border-gray-100 bg-gray-50 rounded-2xl py-4 px-6 text-center outline-none focus:border-orange-400 transition-all" required />
+                                    <input type={showPassword ? "text" : "password"} placeholder="รหัสผ่าน" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="w-full border-2 border-gray-100 bg-gray-50 rounded-2xl py-4 px-6 text-center outline-none focus:border-orange-400" required />
                                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-4 text-gray-400 text-xl">
                                         {showPassword ? '👁️' : '🙈'}
                                     </button>
                                 </div>
-                                <button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-orange-200 transition-all">เข้าสู่ระบบครู</button>
+                                <button type="submit" className="w-full bg-orange-500 hover:bg-orange-600 text-white py-4 rounded-2xl font-bold shadow-lg">เข้าสู่ระบบครู</button>
                             </form>
                         </div>
                     </div>
                 </div>
             );
 
+            // 2. หน้ากรอกข้อมูลผู้สอบ
             if (currentView === 'student-info') return (
                 <div className="min-h-screen flex items-center justify-center p-4 bg-blue-50">
-                    <form onSubmit={submitStudentInfo} className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 border-t-8 border-blue-600 space-y-6">
+                    <form onSubmit={(e) => { e.preventDefault(); setCurrentView('select-subject'); }} className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 border-t-8 border-blue-600 space-y-6">
                         <div className="text-center">
-                            <h2 className="text-2xl font-bold text-gray-800">ลงทะเบียนผู้สอบ</h2>
-                            <p className="text-gray-500 text-sm mt-1">กรุณากรอกข้อมูลจริงเพื่อบันทึกผลการสอบ</p>
+                            <h2 className="text-2xl font-bold text-gray-800">ข้อมูลผู้เข้าสอบ</h2>
+                            <p className="text-gray-500 text-sm mt-1">กรุณาระบุข้อมูลตามจริงเพื่อบันทึกผล</p>
                         </div>
                         <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-600 mb-1 ml-1">ชื่อ-นามสกุล</label>
-                                <input type="text" placeholder="ระบุชื่อและนามสกุล" value={studentInfo.name} onChange={(e)=>setStudentInfo({...studentInfo, name: e.target.value})} className="w-full border-2 border-gray-100 p-4 rounded-2xl outline-none focus:border-blue-500" required />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-600 mb-1 ml-1">ระดับชั้น</label>
-                                <select value={studentInfo.level} onChange={(e)=>setStudentInfo({...studentInfo, level: e.target.value})} className="w-full border-2 border-gray-100 p-4 rounded-2xl outline-none focus:border-blue-500 bg-white" required>
-                                    <option value="">-- เลือกระดับชั้น --</option>
-                                    {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-600 mb-1 ml-1">สังกัด ศกร.</label>
-                                <select value={studentInfo.skr} onChange={(e)=>setStudentInfo({...studentInfo, skr: e.target.value})} className="w-full border-2 border-gray-100 p-4 rounded-2xl outline-none focus:border-blue-500 bg-white" required>
-                                    <option value="">-- เลือก ศกร. --</option>
-                                    {SKR_LOCATIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                            </div>
+                            <input type="text" placeholder="ชื่อ-นามสกุล" value={studentInfo.name} onChange={(e)=>setStudentInfo({...studentInfo, name: e.target.value})} className="w-full border-2 border-gray-100 p-4 rounded-2xl outline-none focus:border-blue-500" required />
+                            <select value={studentInfo.level} onChange={(e)=>setStudentInfo({...studentInfo, level: e.target.value})} className="w-full border-2 border-gray-100 p-4 rounded-2xl bg-white focus:border-blue-500" required>
+                                <option value="">-- เลือกระดับชั้น --</option>
+                                {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                            </select>
+                            <select value={studentInfo.skr} onChange={(e)=>setStudentInfo({...studentInfo, skr: e.target.value})} className="w-full border-2 border-gray-100 p-4 rounded-2xl bg-white focus:border-blue-500" required>
+                                <option value="">-- เลือก ศกร. --</option>
+                                {SKR_LOCATIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                            </select>
                         </div>
-                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-lg transition-all transform active:scale-95">เริ่มทำข้อสอบ</button>
-                        <button type="button" onClick={() => setCurrentView('login')} className="w-full text-gray-400 text-sm font-medium">ย้อนกลับ</button>
+                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-lg transition-all active:scale-95">ถัดไป: เลือกวิชา</button>
+                        <button type="button" onClick={() => setCurrentView('login')} className="w-full text-gray-400 text-sm">ย้อนกลับ</button>
                     </form>
                 </div>
             );
 
+            // 3. หน้าเลือกรายวิชา (สัมพันธ์ตามระดับชั้น)
             if (currentView === 'select-subject') return (
                 <div className="min-h-screen p-8 bg-gray-50">
                     <div className="max-w-6xl mx-auto">
                         <div className="flex justify-between items-center mb-10">
                             <div>
-                                <h1 className="text-3xl font-bold text-gray-800">เลือกรายวิชา</h1>
+                                <h1 className="text-3xl font-bold text-gray-800">เลือกวิชาทำแบบทดสอบ</h1>
                                 <p className="text-blue-600 font-bold">ระดับ: {studentInfo.level}</p>
                             </div>
-                            <button onClick={handleLogout} className="bg-white px-6 py-2 rounded-xl border font-bold text-red-500 hover:bg-red-50 transition-all">ออกจากระบบ</button>
+                            <button onClick={handleLogout} className="bg-white px-6 py-2 rounded-xl border text-red-500 font-bold hover:bg-red-50">ออกจากระบบ</button>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                             {SUBJECTS.map((s, i) => {
                                 const count = questions.filter(q => q.subject === s && q.level === studentInfo.level).length;
                                 return (
-                                    <button key={i} onClick={() => startQuiz(s)} disabled={count === 0} className={`p-8 rounded-3xl border-2 text-left h-full transition-all group relative overflow-hidden ${count > 0 ? 'bg-white border-blue-100 hover:border-blue-500 hover:shadow-xl' : 'bg-gray-100 opacity-60 cursor-not-allowed'}`}>
-                                        <h3 className="font-bold text-xl text-gray-800 mb-2 leading-tight group-hover:text-blue-600">{s}</h3>
-                                        <div className="flex items-center mt-4">
-                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${count > 0 ? 'bg-blue-50 text-blue-600' : 'bg-gray-200 text-gray-500'}`}>
-                                                {count > 0 ? `พบ ${count} ข้อสอบ` : 'ไม่มีข้อสอบ'}
-                                            </span>
-                                        </div>
-                                        {count > 0 && <div className="absolute right-4 bottom-4 text-2xl opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">➡️</div>}
+                                    <button key={i} onClick={() => startQuiz(s)} disabled={count === 0} className={`p-8 rounded-3xl border-2 text-left h-full transition-all group ${count > 0 ? 'bg-white border-blue-100 hover:border-blue-500 hover:shadow-xl' : 'bg-gray-100 opacity-50 cursor-not-allowed'}`}>
+                                        <h3 className="font-bold text-xl text-gray-800 mb-2">{s}</h3>
+                                        <div className="text-xs font-bold text-blue-500">{count > 0 ? `พบข้อสอบ ${count} ข้อ` : 'ไม่มีข้อสอบในระดับนี้'}</div>
                                     </button>
                                 );
                             })}
@@ -312,105 +281,26 @@
                 </div>
             );
 
+            // 4. หน้าทำข้อสอบ
             if (currentView === 'quiz') {
                 const q = quizQuestions[currentQuestionIndex];
                 return (
-                    <div className="min-h-screen p-4 flex flex-col items-center justify-center bg-indigo-50">
-                        <div className="max-w-3xl w-full">
-                            <div className="flex justify-between mb-4 px-4 font-bold text-gray-500 text-sm">
-                                <span>วิชา: {q.subject}</span>
+                    <div className="min-h-screen flex items-center justify-center p-4 bg-indigo-50">
+                        <div className="max-w-3xl w-full bg-white rounded-[2.5rem] shadow-2xl p-10 md:p-16 relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-2 bg-gray-100">
+                                <div className="bg-blue-600 h-full transition-all duration-500" style={{width: `${((currentQuestionIndex)/quizQuestions.length)*100}%`}}></div>
+                            </div>
+                            <div className="flex justify-between mb-8 text-sm font-bold text-gray-400 uppercase tracking-widest">
+                                <span>{q.subject}</span>
                                 <span>ข้อที่ {currentQuestionIndex + 1} / {quizQuestions.length}</span>
                             </div>
-                            <div className="bg-white rounded-[2.5rem] shadow-2xl p-10 md:p-16 border-2 border-white relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-full h-2 bg-gray-100">
-                                    <div className="bg-blue-600 h-full transition-all duration-500" style={{width: `${((currentQuestionIndex)/quizQuestions.length)*100}%`}}></div>
-                                </div>
-                                <h2 className="text-3xl font-bold text-gray-800 mb-12 leading-relaxed">{q.question}</h2>
-                                <div className="grid grid-cols-1 gap-4">
-                                    {q.choices.map((c, i) => (
-                                        <button key={i} onClick={() => handleAnswerSelect(i)} className="w-full text-left p-6 rounded-2xl border-2 border-gray-50 bg-gray-50 hover:border-blue-500 hover:bg-blue-50 transition-all font-bold text-xl text-gray-700 flex items-center group">
-                                            <span className="w-10 h-10 rounded-full bg-white border-2 border-gray-200 text-center leading-9 mr-4 text-sm text-gray-400 group-hover:border-blue-500 group-hover:text-blue-500">{['ก','ข','ค','ง'][i]}</span>
-                                            {c}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                );
-            }
-
-            if (currentView === 'result') return (
-                <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-indigo-600 to-blue-700">
-                    <div className="max-w-xl w-full bg-white rounded-[3rem] shadow-2xl p-12 text-center relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-4 bg-blue-600"></div>
-                        <h2 className="text-4xl font-black text-gray-800 mb-8 uppercase tracking-widest">RESULT</h2>
-                        <div className="bg-blue-50 p-8 rounded-[2rem] mb-10 border-2 border-blue-100">
-                            <p className="text-2xl font-black text-blue-900 mb-1">{studentInfo.name}</p>
-                            <p className="text-blue-600 font-bold">{studentInfo.level} | ศกร. {studentInfo.skr}</p>
-                            <div className="h-px bg-blue-200 my-4"></div>
-                            <p className="text-gray-500 font-bold text-sm uppercase">Subject</p>
-                            <p className="text-xl font-bold text-gray-800 underline decoration-blue-500 decoration-4 underline-offset-8">{quizQuestions[0]?.subject}</p>
-                        </div>
-                        <div className="w-48 h-48 mx-auto rounded-full border-[16px] border-blue-600 flex flex-col items-center justify-center mb-10 shadow-inner bg-white">
-                            <span className="text-6xl font-black text-blue-600">{score}</span>
-                            <span className="text-gray-400 font-bold">OUT OF {quizQuestions.length}</span>
-                        </div>
-                        <button onClick={()=>setCurrentView('select-subject')} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xl shadow-xl shadow-blue-200 transition-all active:scale-95">BACK TO SUBJECTS</button>
-                        <button onClick={handleLogout} className="mt-6 text-gray-400 font-bold text-sm">LOGOUT</button>
-                    </div>
-                </div>
-            );
-
-            // --- ส่วนของครู (ย่อบางส่วนเพื่อประหยัดพื้นที่) ---
-            if (currentView === 'menu' && userRole === 'teacher') return (
-                <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-                    <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-10 text-center border-t-8 border-orange-500">
-                        <h1 className="text-3xl font-bold mb-2">ระบบจัดการครู</h1>
-                        <p className="text-gray-500 mb-8">ยินดีต้อนรับคุณครูเข้าสู่ระบบหลังบ้าน</p>
-                        <div className="space-y-4">
-                            <button onClick={() => setCurrentView('manage')} className="w-full bg-orange-500 text-white py-4 rounded-2xl font-bold shadow-lg">📋 จัดการคลังข้อสอบ ({questions.length} ข้อ)</button>
-                            <button onClick={handleLogout} className="w-full border-2 py-4 rounded-2xl font-bold text-gray-400">ออกจากระบบ</button>
-                        </div>
-                    </div>
-                </div>
-            );
-
-            if (currentView === 'manage' && userRole === 'teacher') {
-                const filtered = questions.filter(q => 
-                    (filterSubject === 'ทั้งหมด' || q.subject === filterSubject) && 
-                    (filterLevel === 'ทั้งหมด' || q.level === filterLevel)
-                );
-                return (
-                    <div className="min-h-screen p-8 bg-white">
-                        <div className="max-w-5xl mx-auto">
-                            <div className="flex justify-between items-center mb-8">
-                                <button onClick={() => setCurrentView('menu')} className="text-orange-500 font-bold">⬅️ กลับเมนู</button>
-                                <h2 className="text-2xl font-bold">คลังข้อสอบทั้งหมด</h2>
-                                <button onClick={() => setCurrentView('add')} className="bg-orange-500 text-white px-6 py-2 rounded-xl font-bold">+ เพิ่มข้อสอบ</button>
-                            </div>
-                            <div className="flex gap-4 mb-6 bg-gray-50 p-4 rounded-2xl">
-                                <select value={filterSubject} onChange={(e)=>setFilterSubject(e.target.value)} className="flex-1 p-2 rounded-lg border-none bg-white shadow-sm outline-none">
-                                    <option value="ทั้งหมด">ทุกวิชา</option>
-                                    {SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}
-                                </select>
-                                <select value={filterLevel} onChange={(e)=>setFilterLevel(e.target.value)} className="flex-1 p-2 rounded-lg border-none bg-white shadow-sm outline-none">
-                                    <option value="ทั้งหมด">ทุกระดับ</option>
-                                    {LEVELS.map(l=><option key={l} value={l}>{l}</option>)}
-                                </select>
-                            </div>
-                            <div className="space-y-4">
-                                {filtered.map((q, i) => (
-                                    <div key={i} className="border-2 border-gray-50 p-6 rounded-2xl relative">
-                                        <div className="flex gap-2 mb-2">
-                                            <span className="bg-orange-100 text-orange-600 text-[10px] px-2 py-0.5 rounded font-bold">{q.subject}</span>
-                                            <span className="bg-blue-100 text-blue-600 text-[10px] px-2 py-0.5 rounded font-bold">{q.level}</span>
-                                        </div>
-                                        <p className="font-bold text-lg mb-4">{q.question}</p>
-                                        <div className="grid grid-cols-2 gap-2 text-sm text-gray-500">
-                                            {q.choices.map((c, ci) => <div key={i+ci} className={q.correctAnswer === ci ? 'text-green-600 font-bold':''}>{['ก','ข','ค','ง'][ci]}. {c}</div>)}
-                                        </div>
-                                    </div>
+                            <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-12 leading-relaxed">{q.question}</h2>
+                            <div className="grid gap-4">
+                                {q.choices.map((c, i) => (
+                                    <button key={i} onClick={() => handleAnswerSelect(i)} className="quiz-option w-full text-left p-6 rounded-2xl border-2 border-gray-50 bg-gray-50 transition-all font-bold text-lg text-gray-700 flex items-center">
+                                        <span className="w-10 h-10 rounded-full bg-white border-2 border-gray-200 text-center leading-9 mr-4 text-sm text-gray-400 group-hover:border-blue-500">{['ก','ข','ค','ง'][i]}</span>
+                                        {c}
+                                    </button>
                                 ))}
                             </div>
                         </div>
@@ -418,31 +308,92 @@
                 );
             }
 
+            // 5. หน้าสรุปผลคะแนน
+            if (currentView === 'result') return (
+                <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-blue-600 to-indigo-800">
+                    <div className="max-w-xl w-full bg-white rounded-[3rem] shadow-2xl p-12 text-center">
+                        <h2 className="text-4xl font-black text-gray-800 mb-8 tracking-widest">RESULT</h2>
+                        <div className="bg-blue-50 p-8 rounded-[2rem] mb-10 border-2 border-blue-100">
+                            <p className="text-2xl font-bold text-blue-900">{studentInfo.name}</p>
+                            <p className="text-blue-600 font-bold text-sm">{studentInfo.level} | {studentInfo.skr}</p>
+                            <div className="h-px bg-blue-200 my-4"></div>
+                            <p className="text-lg font-bold text-gray-800 underline underline-offset-8">{quizQuestions[0]?.subject}</p>
+                        </div>
+                        <div className="w-44 h-44 mx-auto rounded-full border-[14px] border-blue-600 flex flex-col items-center justify-center mb-8 bg-white shadow-inner">
+                            <span className="text-6xl font-black text-blue-600">{score}</span>
+                            <span className="text-gray-400 font-bold">/ {quizQuestions.length}</span>
+                        </div>
+                        
+                        {/* แจ้งเตือนการบันทึกข้อมูล */}
+                        <div className="mb-8 py-2">
+                            {saveStatus === 'saving' && <div className="text-orange-500 font-bold animate-pulse">⏳ กำลังบันทึกคะแนนลงฐานข้อมูล...</div>}
+                            {saveStatus === 'success' && <div className="text-green-600 font-bold">✅ บันทึกคะแนนลง Google Sheets สำเร็จ!</div>}
+                            {saveStatus === 'error' && <div className="text-red-500 font-bold">❌ เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาแจ้งครู</div>}
+                        </div>
+
+                        <button onClick={()=>setCurrentView('select-subject')} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xl shadow-xl transition-all active:scale-95">ทำวิชาอื่นต่อ</button>
+                        <button onClick={handleLogout} className="mt-6 text-gray-400 font-bold hover:text-red-400 transition-colors">ออกจากระบบ</button>
+                    </div>
+                </div>
+            );
+
+            // เมนูสำหรับคุณครู
+            if (currentView === 'menu') return (
+                <div className="min-h-screen flex items-center justify-center bg-gray-100">
+                    <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-10 text-center border-t-8 border-orange-500 space-y-4">
+                        <h1 className="text-2xl font-bold mb-6 text-gray-700">เมนูการจัดการสำหรับครู</h1>
+                        <button onClick={() => setCurrentView('manage')} className="w-full bg-orange-500 hover:bg-orange-600 text-white py-4 rounded-2xl font-bold shadow-lg">📋 จัดการคลังข้อสอบ ({questions.length} ข้อ)</button>
+                        <button onClick={handleLogout} className="w-full border-2 border-gray-100 py-4 rounded-2xl font-bold text-gray-400">ออกจากระบบ</button>
+                    </div>
+                </div>
+            );
+
+            if (currentView === 'manage') return (
+                <div className="p-8 max-w-5xl mx-auto bg-white min-h-screen">
+                    <div className="flex justify-between items-center mb-8">
+                        <button onClick={() => setCurrentView('menu')} className="font-bold text-orange-500">⬅️ กลับเมนู</button>
+                        <h2 className="text-2xl font-bold">คลังข้อสอบทั้งหมด</h2>
+                        <button onClick={() => setCurrentView('add')} className="bg-orange-500 text-white px-6 py-2 rounded-xl font-bold">+ เพิ่มข้อสอบ</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-4 rounded-2xl">
+                        <select value={filterSubject} onChange={(e)=>setFilterSubject(e.target.value)} className="p-3 rounded-xl outline-none shadow-sm"><option value="ทั้งหมด">ทุกวิชา</option>{SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}</select>
+                        <select value={filterLevel} onChange={(e)=>setFilterLevel(e.target.value)} className="p-3 rounded-xl outline-none shadow-sm"><option value="ทั้งหมด">ทุกระดับ</option>{LEVELS.map(l=><option key={l} value={l}>{l}</option>)}</select>
+                    </div>
+                    <div className="space-y-4">
+                        {questions.filter(q => (filterSubject==='ทั้งหมด'||q.subject===filterSubject) && (filterLevel==='ทั้งหมด'||q.level===filterLevel)).map((q, i) => (
+                            <div key={i} className="border-2 border-gray-50 p-6 rounded-2xl">
+                                <div className="flex gap-2 mb-3">
+                                    <span className="bg-blue-100 text-blue-600 text-[10px] px-2 py-0.5 rounded font-bold uppercase">{q.level}</span>
+                                    <span className="bg-orange-100 text-orange-600 text-[10px] px-2 py-0.5 rounded font-bold">{q.subject}</span>
+                                </div>
+                                <p className="font-bold text-gray-800">{q.question}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+
             if (currentView === 'add') return (
                 <div className="min-h-screen p-8 bg-gray-50 flex justify-center">
-                    <form onSubmit={handleAddSubmit} className="max-w-2xl w-full bg-white rounded-3xl p-10 shadow-xl space-y-4">
-                        <h2 className="text-2xl font-bold text-center mb-6">สร้างข้อสอบใหม่</h2>
+                    <form onSubmit={handleAddSubmit} className="max-w-2xl w-full bg-white rounded-3xl p-10 shadow-xl space-y-6">
+                        <h2 className="text-2xl font-bold text-center mb-4">สร้างข้อสอบใหม่</h2>
                         <div className="grid grid-cols-2 gap-4">
-                            <select value={newQuestion.level} onChange={(e)=>setNewQuestion({...newQuestion, level: e.target.value})} className="border p-3 rounded-xl bg-gray-50 outline-none focus:border-orange-500">
-                                {LEVELS.map(l=><option key={l} value={l}>{l}</option>)}
-                            </select>
-                            <select value={newQuestion.subject} onChange={(e)=>setNewQuestion({...newQuestion, subject: e.target.value})} className="border p-3 rounded-xl bg-gray-50 outline-none focus:border-orange-500">
-                                {SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}
-                            </select>
+                            <select value={newQuestion.level} onChange={(e)=>setNewQuestion({...newQuestion, level: e.target.value})} className="border p-4 rounded-2xl bg-gray-50">{LEVELS.map(l=><option key={l} value={l}>{l}</option>)}</select>
+                            <select value={newQuestion.subject} onChange={(e)=>setNewQuestion({...newQuestion, subject: e.target.value})} className="border p-4 rounded-2xl bg-gray-50">{SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}</select>
                         </div>
-                        <textarea placeholder="โจทย์คำถาม" value={newQuestion.question} onChange={(e)=>setNewQuestion({...newQuestion, question: e.target.value})} className="w-full border p-4 rounded-xl h-32 outline-none focus:border-orange-500 bg-gray-50" required />
+                        <textarea placeholder="โจทย์คำถาม" value={newQuestion.question} onChange={(e)=>setNewQuestion({...newQuestion, question: e.target.value})} className="w-full border p-6 rounded-2xl h-32 bg-gray-50 outline-none focus:border-orange-400" required />
                         {newQuestion.choices.map((c, i) => (
-                            <div key={i} className="flex gap-2">
-                                <input type="radio" checked={newQuestion.correctAnswer === i} onChange={()=>setNewQuestion({...newQuestion, correctAnswer: i})} />
+                            <div key={i} className="flex gap-3 items-center">
+                                <input type="radio" checked={newQuestion.correctAnswer === i} onChange={()=>setNewQuestion({...newQuestion, correctAnswer: i})} className="w-5 h-5 accent-orange-500" />
                                 <input type="text" placeholder={`ตัวเลือกที่ ${i+1}`} value={c} onChange={(e)=>{
                                     const nc = [...newQuestion.choices]; nc[i] = e.target.value;
                                     setNewQuestion({...newQuestion, choices: nc});
-                                }} className="flex-1 border p-3 rounded-xl bg-gray-50 outline-none focus:border-orange-500" required />
+                                }} className="flex-1 border p-4 rounded-2xl bg-gray-50 outline-none focus:border-orange-400" required />
                             </div>
                         ))}
                         <div className="flex gap-4 pt-6">
                             <button type="button" onClick={()=>setCurrentView('manage')} className="flex-1 bg-gray-100 py-4 rounded-2xl font-bold">ยกเลิก</button>
-                            <button type="submit" disabled={isSaving} className="flex-2 bg-orange-500 text-white py-4 px-10 rounded-2xl font-bold shadow-lg">{isSaving ? 'บันทึกข้อมูล...' : 'บันทึกลงชีต'}</button>
+                            <button type="submit" disabled={isSaving} className="flex-[2] bg-orange-500 hover:bg-orange-600 text-white py-4 rounded-2xl font-bold shadow-lg transition-all">{isSaving ? 'กำลังบันทึก...' : 'บันทึกลงฐานข้อมูล'}</button>
                         </div>
                     </form>
                 </div>
