@@ -41,7 +41,6 @@
 
         const LEVELS = ["ประถมศึกษา", "มัธยมศึกษาตอนต้น", "มัธยมศึกษาตอนปลาย"];
         
-        // อัปเดตรายการจุดประสงค์การวัดผล 5 รายการ
         const OBJECTIVES = ["ความรู้ความจำ", "ความเข้าใจ", "การวิเคราะห์", "การสังเคราะห์", "การประยุกต์ใช้"];
         
         const TEACHERS = [
@@ -157,9 +156,26 @@
                     };
                     const res = await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
                     const result = await res.json();
+                    
                     if(result.status === 'success') {
-                        alert(editMode ? 'อัปเดตข้อมูลทับแถวเดิมเรียบร้อย' : 'เพิ่มสำเร็จ');
-                        setEditMode(false); setCustomYear(''); fetchQuestionsFromSheets(true); setCurrentView('manage');
+                        if (editMode) {
+                            alert('อัปเดตข้อมูลทับแถวเดิมเรียบร้อย');
+                            setEditMode(false); 
+                            setCustomYear(''); 
+                            setCurrentView('manage'); // กลับไปยังหน้าแก้ไขหลัก
+                        } else {
+                            alert('เพิ่มข้อสอบใหม่สำเร็จ! (สามารถพิมพ์ข้อต่อไปได้ทันที)');
+                            // ล้างเฉพาะคำถามและตัวเลือก ให้สามารถเพิ่มข้อต่อไปได้รวดเร็ว
+                            setNewQuestion({ 
+                                ...newQuestion, 
+                                question: '', 
+                                choices: ['', '', '', ''], 
+                                correctAnswer: 0 
+                            });
+                        }
+                        fetchQuestionsFromSheets(true);
+                    } else {
+                        alert('เกิดข้อผิดพลาดจากเซิร์ฟเวอร์: ' + result.message);
                     }
                 } catch (error) { alert('เกิดข้อผิดพลาดในการบันทึก'); } 
                 finally { setIsSaving(false); }
@@ -292,7 +308,12 @@
                 <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 text-center animate-fade-in">
                     <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-10 border-t-8 border-orange-500 space-y-4">
                         <h1 className="text-2xl font-bold text-gray-700 uppercase font-black">จัดการระบบ (ครู)</h1>
-                        <button onClick={() => { setEditMode(false); setCustomYear(''); setCurrentView('add'); }} className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold shadow-md hover:bg-emerald-600 transition-all">+ เพิ่มข้อสอบใหม่</button>
+                        <button onClick={() => { 
+                            setEditMode(false); 
+                            setCustomYear(''); 
+                            setNewQuestion({ semester: '1', academicYear: '2569', level: LEVELS[0], subject: SUBJECTS[0], teacherName: TEACHERS[0], objective: OBJECTIVES[0], question: '', choices: ['', '', '', ''], correctAnswer: 0 });
+                            setCurrentView('add'); 
+                        }} className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-bold shadow-md hover:bg-emerald-600 transition-all">+ เพิ่มข้อสอบใหม่</button>
                         <button onClick={() => setCurrentView('manage')} className="w-full bg-orange-500 text-white py-4 rounded-2xl font-bold shadow-md hover:bg-orange-600 transition-all">📋 จัดการคลังข้อสอบ ({questions.length})</button>
                         <button onClick={handleLogout} className="w-full border-2 py-4 rounded-2xl font-bold text-gray-400 hover:text-red-500 transition-all">ออกจากระบบ</button>
                     </div>
@@ -313,7 +334,12 @@
                             <h2 className="text-2xl font-bold text-gray-700 font-black text-center">จัดการคลังข้อสอบ</h2>
                             <div className="flex gap-2">
                                 <button onClick={() => fetchQuestionsFromSheets(true)} className="bg-white px-4 py-2 rounded-xl border flex items-center gap-2 font-bold text-gray-600 shadow-sm transition-all hover:bg-blue-50"><span className={isRefreshing ? 'spin-anim':''}>🔄</span></button>
-                                <button onClick={() => { setEditMode(false); setCustomYear(''); setCurrentView('add'); }} className="bg-emerald-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg transition-all hover:bg-emerald-600">+ เพิ่ม</button>
+                                <button onClick={() => { 
+                                    setEditMode(false); 
+                                    setCustomYear(''); 
+                                    setNewQuestion({ semester: '1', academicYear: '2569', level: LEVELS[0], subject: SUBJECTS[0], teacherName: TEACHERS[0], objective: OBJECTIVES[0], question: '', choices: ['', '', '', ''], correctAnswer: 0 });
+                                    setCurrentView('add'); 
+                                }} className="bg-emerald-500 text-white px-8 py-2 rounded-xl font-bold shadow-lg transition-all hover:bg-emerald-600">+ เพิ่ม</button>
                             </div>
                         </div>
 
@@ -426,7 +452,12 @@
                                 <div key={i} className="flex gap-4 items-center group"><input type="radio" checked={newQuestion.correctAnswer === i} onChange={()=>setNewQuestion({...newQuestion, correctAnswer: i})} className="w-6 h-6 accent-orange-500 cursor-pointer" /><input type="text" placeholder={`ตัวเลือกที่ ${i+1}`} value={c} onChange={(e)=>{ let nc = [...newQuestion.choices]; nc[i] = e.target.value; setNewQuestion({...newQuestion, choices: nc}); }} className="flex-1 border-2 border-gray-50 p-4 rounded-2xl bg-gray-50 outline-none focus:border-orange-400 font-medium transition-all" required /></div>
                             ))}
                         </div>
-                        <div className="flex gap-4 pt-8"><button type="button" onClick={()=>{ setEditMode(false); setCustomYear(''); setCurrentView('manage'); }} className="flex-1 bg-gray-100 py-5 rounded-2xl font-black text-gray-400 transition-all hover:bg-gray-200 text-sm">ยกเลิก</button><button type="submit" disabled={isSaving} className="flex-[2] bg-orange-500 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all hover:bg-orange-600 shadow-orange-100">{isSaving ? '⏳ กำลังบันทึก...' : (editMode ? '💾 บันทึกทับแถวเดิม' : '💾 บันทึกลงชีตวิชา')}</button></div>
+                        <div className="flex gap-4 pt-8">
+                            <button type="button" onClick={()=>{ setEditMode(false); setCustomYear(''); setCurrentView('manage'); }} className="flex-1 bg-gray-100 py-5 rounded-2xl font-black text-gray-400 transition-all hover:bg-gray-200 text-sm">ยกเลิก</button>
+                            <button type="submit" disabled={isSaving} className="flex-[2] bg-orange-500 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all hover:bg-orange-600 shadow-orange-100">
+                                {isSaving ? '⏳ กำลังบันทึก...' : (editMode ? '💾 บันทึกทับแถวเดิม' : '💾 บันทึกลงชีตวิชา')}
+                            </button>
+                        </div>
                     </form>
                 </div>
             );
