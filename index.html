@@ -72,10 +72,11 @@
             const [selectedSetName, setSelectedSetName] = useState('');
             const [saveStatus, setSaveStatus] = useState('idle'); 
 
-            // ตัวกรอง
+            // ตัวกรอง (เพิ่มตัวกรองจุดประสงค์)
             const [filterSubject, setFilterSubject] = useState('ทั้งหมด');
             const [filterLevel, setFilterLevel] = useState('ทั้งหมด');
             const [filterTeacher, setFilterTeacher] = useState('ทั้งหมด');
+            const [filterObjective, setFilterObjective] = useState('ทั้งหมด');
             
             const [isSaving, setIsSaving] = useState(false);
             const [editMode, setEditMode] = useState(false);
@@ -281,8 +282,10 @@
                     <div className="max-w-3xl w-full bg-white rounded-[2.5rem] shadow-2xl p-10 md:p-16 relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-2 bg-gray-100"><div className="bg-blue-600 h-full transition-all duration-500" style={{width: `${((currentQuestionIndex)/quizQuestions.length)*100}%`}}></div></div>
                         
-                        <div className="flex justify-between mb-8 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                            <span>{selectedSubjectName} | {selectedSetName}</span>
+                        <div className="flex justify-between items-start mb-8 text-xs font-bold text-gray-400 uppercase tracking-widest">
+                            <div className="flex flex-col gap-2 text-left">
+                                <span>{selectedSubjectName} | {selectedSetName}</span>
+                            </div>
                             <span>{currentQuestionIndex + 1}/{quizQuestions.length}</span>
                         </div>
                         
@@ -328,7 +331,8 @@
                 const filtered = questions.filter(q => 
                     (filterSubject === 'ทั้งหมด' || q.subject === filterSubject) && 
                     (filterLevel === 'ทั้งหมด' || q.level === filterLevel) &&
-                    (filterTeacher === 'ทั้งหมด' || q.teacherName === filterTeacher)
+                    (filterTeacher === 'ทั้งหมด' || q.teacherName === filterTeacher) &&
+                    (filterObjective === 'ทั้งหมด' || q.objective === filterObjective)
                 );
                 
                 return (
@@ -354,18 +358,18 @@
                             </div>
                         </div>
 
-                        {/* ตัวกรอง */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 bg-slate-50 p-6 rounded-3xl text-sm">
+                        {/* ตัวกรอง 4 หมวด */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8 bg-slate-50 p-6 rounded-3xl text-sm">
                             <div className="flex flex-col">
                                 <label className="text-[10px] font-bold text-gray-400 ml-2 uppercase tracking-widest mb-1">ชีตวิชา</label>
-                                <select value={filterSubject} onChange={(e)=>setFilterSubject(e.target.value)} className="p-3 rounded-2xl outline-none shadow-sm bg-white font-bold">
+                                <select value={filterSubject} onChange={(e)=>setFilterSubject(e.target.value)} className="p-3 rounded-2xl outline-none shadow-sm bg-white font-bold text-orange-600">
                                     <option value="ทั้งหมด">แสดงทุกวิชา</option>
                                     {SUBJECTS.map(s=><option key={s} value={s}>{s}</option>)}
                                 </select>
                             </div>
                             <div className="flex flex-col">
                                 <label className="text-[10px] font-bold text-gray-400 ml-2 uppercase tracking-widest mb-1">ระดับชั้น</label>
-                                <select value={filterLevel} onChange={(e)=>setFilterLevel(e.target.value)} className="p-3 rounded-2xl outline-none shadow-sm bg-white font-bold">
+                                <select value={filterLevel} onChange={(e)=>setFilterLevel(e.target.value)} className="p-3 rounded-2xl outline-none shadow-sm bg-white font-bold text-blue-600">
                                     <option value="ทั้งหมด">แสดงทุกระดับ</option>
                                     {LEVELS.map(l=><option key={l} value={l}>{l}</option>)}
                                 </select>
@@ -375,6 +379,13 @@
                                 <select value={filterTeacher} onChange={(e)=>setFilterTeacher(e.target.value)} className="p-3 rounded-2xl outline-none shadow-sm bg-white font-bold text-emerald-600">
                                     <option value="ทั้งหมด">แสดงทุกคน</option>
                                     {TEACHERS.map(t=><option key={t} value={t}>{t}</option>)}
+                                </select>
+                            </div>
+                            <div className="flex flex-col">
+                                <label className="text-[10px] font-bold text-gray-400 ml-2 uppercase tracking-widest mb-1">จุดประสงค์</label>
+                                <select value={filterObjective} onChange={(e)=>setFilterObjective(e.target.value)} className="p-3 rounded-2xl outline-none shadow-sm bg-white font-bold text-purple-600">
+                                    <option value="ทั้งหมด">แสดงทั้งหมด</option>
+                                    {OBJECTIVES.map(o=><option key={o} value={o}>{o}</option>)}
                                 </select>
                             </div>
                         </div>
